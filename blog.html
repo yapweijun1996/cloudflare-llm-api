@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Home LLM + Cloudflare Tunnel Guide</title>
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=general%20sans@400,500,600,700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: { display: ['"General Sans"', "ui-sans-serif", "system-ui"] },
+            colors: {
+              base: "#0b1220",
+              panel: "#0f172a",
+              accent: "#22d3ee",
+              glow: "#a855f7",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        background: radial-gradient(circle at 20% 20%, rgba(168, 85, 247, 0.15), transparent 35%),
+          radial-gradient(circle at 80% 0%, rgba(34, 211, 238, 0.12), transparent 40%),
+          #0b1220;
+      }
+      code,
+      pre {
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          "Courier New", monospace;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen text-slate-100 antialiased">
+    <div class="mx-auto max-w-5xl px-4 py-10">
+      <header class="mb-10 space-y-4">
+        <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Hands-on Guide</p>
+        <h1 class="text-4xl font-semibold leading-tight text-white sm:text-5xl">
+          Host your own OpenAI-style API at home with llama.cpp + Cloudflare Tunnel
+        </h1>
+        <p class="max-w-3xl text-slate-300">
+          This blog walks a junior teammate through running a local GGUF model with llama.cpp, exposing it safely through
+          Cloudflare Tunnel, protecting it with a Node.js API-key gateway, and using the Tailwind chat UI in
+          <code>index.html</code>.
+        </p>
+        <div class="flex flex-wrap gap-2 text-xs text-slate-300">
+          <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">llama.cpp</span>
+          <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">Cloudflare Tunnel</span>
+          <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">Node.js Gateway</span>
+          <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">Tailwind Chat UI</span>
+        </div>
+      </header>
+
+      <section class="mb-8 grid gap-4 sm:grid-cols-3">
+        <div class="rounded-xl border border-white/5 bg-panel/80 p-4 shadow-lg shadow-black/30">
+          <p class="text-xs uppercase tracking-wide text-slate-400">What you get</p>
+          <p class="mt-2 text-sm text-slate-100">
+            An OpenAI-compatible <code>/v1/chat/completions</code> API that runs on your hardware and is reachable over
+            HTTPS with your own API keys.
+          </p>
+        </div>
+        <div class="rounded-xl border border-white/5 bg-panel/80 p-4 shadow-lg shadow-black/30">
+          <p class="text-xs uppercase tracking-wide text-slate-400">Who this is for</p>
+          <p class="mt-2 text-sm text-slate-100">
+            Juniors who want a copy-paste friendly path to a self-hosted LLM with sensible defaults.
+          </p>
+        </div>
+        <div class="rounded-xl border border-white/5 bg-panel/80 p-4 shadow-lg shadow-black/30">
+          <p class="text-xs uppercase tracking-wide text-slate-400">Time to complete</p>
+          <p class="mt-2 text-sm text-slate-100">About 30-45 minutes on macOS with decent bandwidth.</p>
+        </div>
+      </section>
+
+      <section class="mb-10 rounded-2xl border border-white/5 bg-panel/80 p-6 shadow-xl shadow-black/40">
+        <h2 class="text-2xl font-semibold text-white">0. Architecture</h2>
+        <p class="mt-3 text-slate-300">
+          Requests flow from the browser to your gateway, then to llama.cpp, with Cloudflare handling the public entry
+          point. API keys are enforced at the gateway.
+        </p>
+        <pre class="mt-4 overflow-auto rounded-xl border border-white/5 bg-black/60 p-4 text-sm leading-relaxed text-slate-100"><code>[Browser / App] -- HTTPS + Authorization: Bearer sk-xxx
+        |
+Cloudflare Edge (DNS/TLS/WAF)
+        |
+cloudflared tunnel
+        |
+Node.js Gateway @ localhost:8787
+        |
+llama-server (llama.cpp) @ localhost:5857</code></pre>
+      </section>
+
+      <section class="mb-10 space-y-6">
+        <div class="rounded-2xl border border-white/5 bg-panel/80 p-6 shadow-xl shadow-black/40">
+          <h3 class="text-xl font-semibold text-white">1. Prerequisites</h3>
+          <ul class="mt-3 space-y-2 text-slate-200">
+            <li>- Hardware: 16 GB RAM recommended for gpt-oss-20B; smaller 7B/8B models work on leaner boxes.</li>
+            <li>- OS: macOS/Linux/Windows; examples use macOS.</li>
+            <li>- Tools: Homebrew (mac), Node.js 18+, a Cloudflare account with a domain managed there.</li>
+          </ul>
+        </div>
+        <div class="rounded-2xl border border-white/5 bg-panel/80 p-6 shadow-xl shadow-black/40">
+          <h3 class="text-xl font-semibold text-white">2. Run llama.cpp locally</h3>
+          <p class="mt-2 text-slate-300">Install once, then start the OpenAI-compatible server.</p>
+<pre class="mt-4 overflow-auto rounded-xl border border-white/5 bg-black/70 p-4 text-sm text-slate-100"><code>brew install llama.cpp
+
+# Launch the server (downloads model on first run)
+llama-server \
+  -hf unsloth/gpt-oss-20b-GGUF:gpt-oss-20b-Q4_K_M.gguf \
+  --port 5857 \
+  --ctx-size 16384 \
+  --threads -1 \
+  --jinja \
+  --reasoning-format none
+</code></pre>
+          <p class="mt-3 text-slate-300">Sanity check the local API:</p>
+<pre class="mt-2 overflow-auto rounded-xl border border-white/5 bg-black/70 p-4 text-sm text-slate-100"><code>curl http://localhost:5857/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{ "model": "gpt-oss-20b", "messages": [{ "role": "user", "content": "Hello from localhost" }] }'</code></pre>
+        </div>
+        <div class="rounded-2xl border border-white/5 bg-panel/80 p-6 shadow-xl shadow-black/40">
+          <h3 class="text-xl font-semibold text-white">3. Add a Node.js API-key gateway</h3>
+          <p class="mt-2 text-slate-300">
+            The gateway enforces Bearer tokens and fixes CORS for browsers. Files live in <code>gateway/</code>.
+          </p>
+<pre class="mt-4 overflow-auto rounded-xl border border-white/5 bg-black/70 p-4 text-sm text-slate-100"><code>cd gateway
+cp .env.example .env
+# Edit .env to match your host and keys:
+# LLM_API_KEYS=sk-tno-llm-2025-1,sk-tno-llm-2025-2
+# LLM_UPSTREAM=http://127.0.0.1:5857
+# GATEWAY_PORT=8787
+# CORS_ALLOW_ORIGIN=http://localhost:7788
+
+npm install   # first time
+npm start     # runs gateway.js on port 8787</code></pre>
+          <p class="mt-3 text-slate-300">
+            In <code>gateway.js</code>, the <code>authMiddleware</code> checks <code>Authorization: Bearer sk-xxx</code>,
+            and CORS headers are applied globally plus after proxying upstream to avoid blank upstream CORS. This is why
+            your browser requests stop failing with CORS.
+          </p>
+        </div>
+        <div class="rounded-2xl border border-white/5 bg-panel/80 p-6 shadow-xl shadow-black/40">
+          <h3 class="text-xl font-semibold text-white">4. Expose safely with Cloudflare Tunnel</h3>
+          <p class="mt-2 text-slate-300">Map a public HTTPS hostname to your local gateway.</p>
+<pre class="mt-4 overflow-auto rounded-xl border border-white/5 bg-black/70 p-4 text-sm text-slate-100"><code>brew install cloudflared
+cloudflared tunnel login      # one-time auth in browser
+cloudflared tunnel create llm-home
+cloudflared tunnel route dns llm-home api.your-domain.com
+
+# config.yaml example (usually in ~/.cloudflared/)
+url: http://localhost:8787
+tunnel: llm-home
+credentials-file: /Users/you/.cloudflared/llm-home.json
+
+cloudflared tunnel run llm-home</code></pre>
+          <p class="mt-3 text-slate-300">
+            At this point <code>https://api.your-domain.com/v1/chat/completions</code> reaches your gateway, which checks
+            the API key and forwards to llama.cpp on localhost.
+          </p>
+        </div>
+        <div class="rounded-2xl border border-white/5 bg-panel/80 p-6 shadow-xl shadow-black/40">
+          <h3 class="text-xl font-semibold text-white">5. Use the Tailwind chat UI</h3>
+          <p class="mt-2 text-slate-300">
+            <code>index.html</code> is a streaming chatbox that shows first-token latency and tokens-per-second.
+          </p>
+<pre class="mt-4 overflow-auto rounded-xl border border-white/5 bg-black/70 p-4 text-sm text-slate-100"><code># Serve the frontend (from repo root)
+python3 -m http.server 7788
+
+# In index.html (already set)
+const API_URL = "http://localhost:8787/v1/chat/completions";
+const API_KEY = "sk-tno-llm-2025-1";  // replace with your key</code></pre>
+          <ul class="mt-3 space-y-2 text-slate-200">
+            <li>- Enter your prompt, the assistant streams via Server-Sent Events.</li>
+            <li>- Metrics cards show first-token time and approximate tokens per second.</li>
+            <li>- CORS is handled by the gateway; the page uses Tailwind CDN for styling.</li>
+          </ul>
+        </div>
+        <div class="rounded-2xl border border-white/5 bg-panel/80 p-6 shadow-xl shadow-black/40">
+          <h3 class="text-xl font-semibold text-white">6. Deploy notes</h3>
+          <ul class="mt-3 space-y-2 text-slate-200">
+            <li>- Change <code>CORS_ALLOW_ORIGIN</code> to your production frontend host.</li>
+            <li>- Rotate <code>LLM_API_KEYS</code> regularly; keep them out of the browser.</li>
+            <li>- Put the gateway behind Cloudflare WAF/threat rules; keep llama-server bound to localhost.</li>
+            <li>- For HTTPS locally, front the gateway with a reverse proxy (optional if using tunnel).</li>
+          </ul>
+        </div>
+      </section>
+
+      <footer class="mt-12 border-t border-white/5 pt-6 text-sm text-slate-400">
+        Made for teammates who need a clear, copy-paste path to a home-hosted LLM. Adjust model and CORS settings to fit
+        your hardware and domain.
+      </footer>
+    </div>
+  </body>
+</html>
