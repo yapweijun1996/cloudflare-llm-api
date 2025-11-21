@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gateway Chat</title>
+    <link rel="icon" href="data:," />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=space%20grotesk@400,500,600,700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: { display: ['"Space Grotesk"', "ui-sans-serif", "system-ui"] },
+            colors: {
+              surface: "#0b1220",
+              panel: "#0f172a",
+              accent: "#22d3ee",
+              glow: "#a855f7",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        background: radial-gradient(circle at 20% 20%, rgba(168, 85, 247, 0.15), transparent 35%),
+          radial-gradient(circle at 80% 0%, rgba(34, 211, 238, 0.15), transparent 40%),
+          #0b1220;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen text-slate-100 antialiased">
+    <div class="mx-auto flex min-h-screen max-w-5xl flex-col px-4 py-8">
+      <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p class="text-sm uppercase tracking-[0.2em] text-slate-400">Cloudflare Gateway Demo</p>
+          <h1 class="mt-2 text-3xl font-semibold text-white md:text-4xl">Streaming Chatbox</h1>
+          <p class="mt-2 max-w-2xl text-sm text-slate-400">
+            Uses the provided Gateway endpoint to stream completions. Metrics update per request:
+            first-token time and tokens per second.
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <span class="rounded-full border border-slate-700 bg-panel/60 px-3 py-1 text-xs text-slate-300"
+            >Model: gpt-oss-20b</span
+          >
+          <span class="rounded-full border border-slate-700 bg-panel/60 px-3 py-1 text-xs text-slate-300"
+            >Tailwind + Space Grotesk</span
+          >
+        </div>
+      </header>
+
+      <section class="mb-6 grid gap-3 sm:grid-cols-3">
+        <div class="rounded-xl border border-white/5 bg-panel/80 p-4 shadow-lg shadow-black/30">
+          <p class="text-xs uppercase tracking-wide text-slate-400">First Token Time</p>
+          <p id="firstTokenTime" class="mt-1 text-2xl font-semibold text-white">--</p>
+        </div>
+        <div class="rounded-xl border border-white/5 bg-panel/80 p-4 shadow-lg shadow-black/30">
+          <p class="text-xs uppercase tracking-wide text-slate-400">Tokens / Second</p>
+          <p id="tokenRate" class="mt-1 text-2xl font-semibold text-white">--</p>
+        </div>
+        <div class="rounded-xl border border-white/5 bg-panel/80 p-4 shadow-lg shadow-black/30">
+          <p class="text-xs uppercase tracking-wide text-slate-400">Status</p>
+          <p id="status" class="mt-1 text-2xl font-semibold text-white">Idle</p>
+        </div>
+      </section>
+
+      <main
+        class="flex h-[60vh] flex-1 flex-col overflow-hidden rounded-2xl border border-white/5 bg-panel/90 shadow-2xl shadow-black/40 backdrop-blur">
+        <div id="messages" class="flex-1 space-y-4 overflow-y-auto p-4">
+          <div class="flex gap-3">
+            <div
+              class="mt-1 h-8 w-8 flex-shrink-0 rounded-full bg-gradient-to-br from-glow/70 to-accent/80 text-center text-sm font-semibold leading-8 text-slate-950">
+              AI
+            </div>
+            <div class="relative max-w-3xl rounded-2xl bg-white/5 p-3 text-sm leading-relaxed text-slate-100">
+              Hi! Ask me anything. I'll reply through your Gateway and show streaming metrics.
+            </div>
+          </div>
+        </div>
+        <form id="chatForm" class="border-t border-white/5 bg-black/10 p-4 backdrop-blur">
+          <div class="flex items-end gap-3">
+            <textarea
+              id="userInput"
+              rows="2"
+              class="h-20 w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
+              placeholder='Say "Hello from Internet via Gateway + API Key"'
+              required
+            ></textarea>
+            <button
+              id="sendBtn"
+              type="submit"
+              class="group relative inline-flex h-12 w-32 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-r from-glow to-accent text-sm font-semibold text-slate-950 transition hover:shadow-lg hover:shadow-accent/30 disabled:cursor-not-allowed disabled:opacity-60">
+              <span class="absolute inset-0 translate-y-full bg-white/20 transition group-hover:translate-y-0"></span>
+              <span class="relative">Send</span>
+            </button>
+          </div>
+        </form>
+      </main>
+    </div>
+
+    <script>
+      // Point to the local gateway (which handles CORS) by default.
+      const API_URL = "http://localhost:8787/v1/chat/completions";
+      const API_KEY = "sk-tno-llm-2025-1";
+
+      const messagesEl = document.getElementById("messages");
+      const userInput = document.getElementById("userInput");
+      const chatForm = document.getElementById("chatForm");
+      const sendBtn = document.getElementById("sendBtn");
+      const statusEl = document.getElementById("status");
+      const firstTokenEl = document.getElementById("firstTokenTime");
+      const tokenRateEl = document.getElementById("tokenRate");
+
+      const history = [
+        {
+          role: "system",
+          content: "You are a concise assistant. Keep answers short and clear.",
+        },
+      ];
+
+      chatForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        sendMessage();
+      });
+
+      userInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+
+      async function sendMessage() {
+        const content = userInput.value.trim();
+        if (!content) return;
+
+        addMessage("user", content);
+        userInput.value = "";
+        userInput.focus();
+
+        const assistantNode = addMessage("assistant", "");
+        setStatus("Requesting...");
+        sendBtn.disabled = true;
+
+        const startedAt = performance.now();
+        let firstTokenAt = null;
+        let tokenCount = 0;
+        let buffer = "";
+
+        try {
+          const payload = {
+            model: "gpt-oss-20b",
+            stream: true,
+            messages: [...history, { role: "user", content }],
+          };
+
+          const response = await fetch(API_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${API_KEY}`,
+            },
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok || !response.body) {
+            throw new Error(`Request failed: ${response.status} ${response.statusText}`);
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+
+          streamLoop: while (true) {
+            const { value, done } = await reader.read();
+            if (done) break streamLoop;
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split("\n");
+
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              if (!line.startsWith("data:")) continue;
+              const json = line.replace(/^data:\s*/, "");
+              if (json === "[DONE]") break streamLoop;
+
+              try {
+                const data = JSON.parse(json);
+                const delta = data.choices?.[0]?.delta?.content ?? "";
+                if (!delta) continue;
+
+                if (!firstTokenAt) {
+                  firstTokenAt = performance.now();
+                  updateFirstToken(startedAt, firstTokenAt);
+                }
+
+                buffer += delta;
+                tokenCount += delta.split(/\s+/).filter(Boolean).length;
+                assistantNode.textContent = buffer;
+                scrollToBottom();
+              } catch (err) {
+                console.error("Stream parse error", err);
+              }
+            }
+          }
+
+          const endedAt = performance.now();
+          updateTokenRate(firstTokenAt, endedAt, tokenCount);
+
+          history.push({ role: "user", content });
+          history.push({ role: "assistant", content: buffer || "..." });
+
+          setStatus("Done");
+        } catch (error) {
+          console.error(error);
+          assistantNode.textContent = "Request failed. Check console.";
+          setStatus("Error");
+          firstTokenEl.textContent = "--";
+          tokenRateEl.textContent = "--";
+        } finally {
+          sendBtn.disabled = false;
+        }
+      }
+
+      function addMessage(role, text) {
+        const row = document.createElement("div");
+        row.className = "flex gap-3";
+
+        const avatar = document.createElement("div");
+        avatar.className =
+          "mt-1 h-8 w-8 flex-shrink-0 rounded-full text-center text-sm font-semibold leading-8";
+
+        if (role === "user") {
+          avatar.textContent = "You";
+          avatar.classList.add("bg-white/10", "text-slate-200");
+        } else {
+          avatar.textContent = "AI";
+          avatar.classList.add("bg-gradient-to-br", "from-glow/70", "to-accent/80", "text-slate-950");
+        }
+
+        const bubble = document.createElement("div");
+        bubble.className =
+          "relative max-w-3xl rounded-2xl p-3 text-sm leading-relaxed backdrop-blur-sm";
+        bubble.textContent = text;
+
+        if (role === "user") {
+          bubble.classList.add("bg-white/5", "text-slate-100", "border", "border-white/10");
+        } else {
+          bubble.classList.add("bg-gradient-to-br", "from-white/10", "to-white/5", "text-slate-100");
+        }
+
+        row.append(avatar, bubble);
+        messagesEl.appendChild(row);
+        scrollToBottom();
+        return bubble;
+      }
+
+      function updateFirstToken(startedAt, firstTokenAt) {
+        const ms = firstTokenAt - startedAt;
+        firstTokenEl.textContent = `${ms.toFixed(0)} ms`;
+        setStatus("Streaming...");
+      }
+
+      function updateTokenRate(firstTokenAt, endedAt, tokens) {
+        if (!firstTokenAt) {
+          tokenRateEl.textContent = "--";
+          return;
+        }
+        const durationSec = (endedAt - firstTokenAt) / 1000;
+        const rate = durationSec > 0 ? tokens / durationSec : tokens;
+        tokenRateEl.textContent = `${rate.toFixed(1)} tok/s`;
+      }
+
+      function setStatus(text) {
+        statusEl.textContent = text;
+      }
+
+      function scrollToBottom() {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+    </script>
+  </body>
+</html>
