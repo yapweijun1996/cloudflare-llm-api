@@ -1,127 +1,214 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
     <title>Gateway Chat</title>
     <link rel="icon" href="data:," />
+    
+    <!-- Fonts -->
     <link
       href="https://api.fontshare.com/v2/css?f[]=space%20grotesk@400,500,600,700&display=swap"
       rel="stylesheet"
     />
+    
+    <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Markdown & Syntax Highlighting -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
     <script>
       tailwind.config = {
         theme: {
           extend: {
-            fontFamily: { display: ['"Space Grotesk"', "ui-sans-serif", "system-ui"] },
+            fontFamily: { display: ['"Space Grotesk"', "sans-serif"], body: ["ui-sans-serif", "system-ui"] },
             colors: {
               surface: "#0b1220",
-              panel: "#0f172a",
-              accent: "#22d3ee",
-              glow: "#a855f7",
+              panel: "#111827",
+              accent: "#38bdf8", // Sky blue
+              glow: "#c084fc",   // Purple
             },
+            animation: {
+              'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            }
           },
         },
       };
     </script>
     <style>
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+
       body {
-        background: radial-gradient(circle at 20% 20%, rgba(168, 85, 247, 0.15), transparent 35%),
-          radial-gradient(circle at 80% 0%, rgba(34, 211, 238, 0.15), transparent 40%),
-          #0b1220;
+        background-color: #0b1220;
+        background-image: 
+          radial-gradient(circle at 15% 15%, rgba(192, 132, 252, 0.12), transparent 40%),
+          radial-gradient(circle at 85% 5%, rgba(56, 189, 248, 0.12), transparent 40%);
+        /* Prevent pull-to-refresh on mobile */
+        overscroll-behavior-y: none;
       }
+
+      /* Markdown Styles within Chat */
+      .prose p { margin-bottom: 0.75em; }
+      .prose p:last-child { margin-bottom: 0; }
+      .prose pre { background: #1e293b; border-radius: 0.5rem; padding: 0.75rem; overflow-x: auto; margin-top: 0.5rem; margin-bottom: 0.5rem; border: 1px solid rgba(255,255,255,0.1); }
+      .prose code { font-family: monospace; background: rgba(255,255,255,0.1); padding: 0.1em 0.3em; border-radius: 0.25em; font-size: 0.9em; }
+      .prose pre code { background: transparent; padding: 0; }
+      .prose ul { list-style-type: disc; padding-left: 1.2em; margin-bottom: 0.75em; }
+      .prose ol { list-style-type: decimal; padding-left: 1.2em; margin-bottom: 0.75em; }
     </style>
   </head>
-  <body class="min-h-screen text-slate-100 antialiased">
-    <div class="mx-auto flex min-h-screen max-w-5xl flex-col px-4 py-8">
-      <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p class="text-sm uppercase tracking-[0.2em] text-slate-400">Cloudflare Gateway Demo</p>
-          <h1 class="mt-2 text-3xl font-semibold text-white md:text-4xl">Streaming Chatbox</h1>
-          <p class="mt-2 max-w-2xl text-sm text-slate-400">
-            Uses the provided Gateway endpoint to stream completions. Metrics update per request:
-            first-token time and tokens per second.
-          </p>
+  
+  <!-- h-dvh ensures full height on mobile browsers including dynamic URL bars -->
+  <body class="h-dvh w-full text-slate-200 antialiased flex flex-col overflow-hidden font-body selection:bg-accent/30">
+    
+    <!-- Top Bar -->
+    <header class="flex-none border-b border-white/5 bg-panel/50 backdrop-blur-md z-10">
+      <div class="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-glow to-accent flex items-center justify-center shadow-lg shadow-glow/20">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-950"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          </div>
+          <div>
+            <h1 class="text-lg font-display font-bold text-white leading-tight">Gateway Chat</h1>
+            <p class="text-[10px] uppercase tracking-wider text-accent/80 font-semibold">Stream Demo</p>
+          </div>
         </div>
-        <div class="flex gap-2">
-          <span class="rounded-full border border-slate-700 bg-panel/60 px-3 py-1 text-xs text-slate-300"
-            >Model: gpt-oss-20b</span
-          >
-          <span class="rounded-full border border-slate-700 bg-panel/60 px-3 py-1 text-xs text-slate-300"
-            >Tailwind + Space Grotesk</span
-          >
+        
+        <!-- Status Badge -->
+        <div class="hidden sm:flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
+          <div id="statusDot" class="h-2 w-2 rounded-full bg-slate-500"></div>
+          <span id="status" class="text-xs font-medium text-slate-300">Idle</span>
         </div>
-      </header>
+      </div>
+    </header>
 
-      <section class="mb-6 grid gap-3 sm:grid-cols-3">
-        <div class="rounded-xl border border-white/5 bg-panel/80 p-4 shadow-lg shadow-black/30">
-          <p class="text-xs uppercase tracking-wide text-slate-400">First Token Time</p>
-          <p id="firstTokenTime" class="mt-1 text-2xl font-semibold text-white">--</p>
-        </div>
-        <div class="rounded-xl border border-white/5 bg-panel/80 p-4 shadow-lg shadow-black/30">
-          <p class="text-xs uppercase tracking-wide text-slate-400">Tokens / Second</p>
-          <p id="tokenRate" class="mt-1 text-2xl font-semibold text-white">--</p>
-        </div>
-        <div class="rounded-xl border border-white/5 bg-panel/80 p-4 shadow-lg shadow-black/30">
-          <p class="text-xs uppercase tracking-wide text-slate-400">Status</p>
-          <p id="status" class="mt-1 text-2xl font-semibold text-white">Idle</p>
-        </div>
-      </section>
-
-      <main
-        class="flex h-[60vh] flex-1 flex-col overflow-hidden rounded-2xl border border-white/5 bg-panel/90 shadow-2xl shadow-black/40 backdrop-blur">
-        <div id="messages" class="flex-1 space-y-4 overflow-y-auto p-4">
-          <div class="flex gap-3">
-            <div
-              class="mt-1 h-8 w-8 flex-shrink-0 rounded-full bg-gradient-to-br from-glow/70 to-accent/80 text-center text-sm font-semibold leading-8 text-slate-950">
-              AI
+    <!-- Metrics Bar (Scrollable on mobile) -->
+    <div class="flex-none bg-surface/50 border-b border-white/5">
+      <div class="mx-auto max-w-5xl px-4 py-2 overflow-x-auto no-scrollbar">
+        <div class="flex gap-2 sm:grid sm:grid-cols-3 sm:gap-4 min-w-max sm:min-w-0">
+          <div class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 w-40 sm:w-auto">
+            <div class="p-1.5 rounded bg-blue-500/10 text-blue-400">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
             </div>
-            <div class="relative max-w-3xl rounded-2xl bg-white/5 p-3 text-sm leading-relaxed text-slate-100">
-              Hi! Ask me anything. I'll reply through your Gateway and show streaming metrics.
+            <div>
+              <p class="text-[10px] uppercase text-slate-500 font-bold tracking-wide">First Token</p>
+              <p id="firstTokenTime" class="text-sm font-mono text-white">--</p>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 w-40 sm:w-auto">
+            <div class="p-1.5 rounded bg-green-500/10 text-green-400">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+            </div>
+            <div>
+              <p class="text-[10px] uppercase text-slate-500 font-bold tracking-wide">Speed</p>
+              <p id="tokenRate" class="text-sm font-mono text-white">--</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 w-40 sm:w-auto">
+            <div class="p-1.5 rounded bg-purple-500/10 text-purple-400">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+            </div>
+            <div>
+              <p class="text-[10px] uppercase text-slate-500 font-bold tracking-wide">Model</p>
+              <p class="text-sm font-medium text-white truncate">gpt-oss-20b</p>
             </div>
           </div>
         </div>
-        <form id="chatForm" class="border-t border-white/5 bg-black/10 p-4 backdrop-blur">
-          <div class="flex items-end gap-3">
-            <textarea
-              id="userInput"
-              rows="2"
-              class="h-20 w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
-              placeholder='Say "Hello from Internet via Gateway + API Key"'
-              required
-            ></textarea>
-            <button
-              id="sendBtn"
-              type="submit"
-              class="group relative inline-flex h-12 w-32 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-r from-glow to-accent text-sm font-semibold text-slate-950 transition hover:shadow-lg hover:shadow-accent/30 disabled:cursor-not-allowed disabled:opacity-60">
-              <span class="absolute inset-0 translate-y-full bg-white/20 transition group-hover:translate-y-0"></span>
-              <span class="relative">Send</span>
-            </button>
-          </div>
-        </form>
-      </main>
+      </div>
     </div>
 
+    <!-- Chat Area -->
+    <main id="messages" class="flex-1 overflow-y-auto p-4 scroll-smooth">
+      <div class="mx-auto max-w-3xl space-y-6 pb-4">
+        <!-- Welcome Message -->
+        <div class="flex gap-4">
+          <div class="flex-none flex flex-col items-center gap-1">
+             <div class="h-8 w-8 rounded-full bg-gradient-to-br from-glow to-accent flex items-center justify-center text-xs font-bold text-slate-950 shadow-lg shadow-purple-500/20">AI</div>
+          </div>
+          <div class="flex-1 max-w-[85%]">
+            <div class="bg-white/5 border border-white/10 rounded-2xl rounded-tl-none px-4 py-3 text-sm leading-relaxed text-slate-200 shadow-sm">
+              Hi! I'm ready to chat. I'll stream responses via your Gateway and format Code/Markdown automatically.
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Input Area -->
+    <footer class="flex-none bg-surface/80 backdrop-blur-xl border-t border-white/5 pb-safe">
+      <div class="mx-auto max-w-3xl p-4">
+        <form id="chatForm" class="relative flex items-end gap-2 bg-panel/50 border border-white/10 rounded-2xl p-2 shadow-2xl focus-within:border-accent/50 focus-within:bg-panel transition-colors">
+          
+          <textarea
+            id="userInput"
+            rows="1"
+            class="w-full max-h-[120px] resize-none bg-transparent px-3 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none"
+            placeholder="Message Gateway..."
+            required
+          ></textarea>
+
+          <button
+            id="sendBtn"
+            type="submit"
+            class="group relative mb-1 mr-1 inline-flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-slate-700 text-white transition hover:bg-accent hover:text-slate-950 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-0.5"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          </button>
+        </form>
+        <p class="mt-2 text-center text-[10px] text-slate-600">Powered by Cloudflare Gateway • AI generated content may be inaccurate.</p>
+      </div>
+    </footer>
+
     <script>
-      // Point to the local gateway (which handles CORS) by default.
       const API_URL = "https://api.b1122333.com/v1/chat/completions";
       const API_KEY = "sk-tno-llm-2025-1";
 
       const messagesEl = document.getElementById("messages");
+      const messagesContainer = messagesEl.firstElementChild; // The inner max-w-3xl div
       const userInput = document.getElementById("userInput");
       const chatForm = document.getElementById("chatForm");
       const sendBtn = document.getElementById("sendBtn");
       const statusEl = document.getElementById("status");
+      const statusDot = document.getElementById("statusDot");
       const firstTokenEl = document.getElementById("firstTokenTime");
       const tokenRateEl = document.getElementById("tokenRate");
+
+      // Setup Marked (Markdown) options
+      marked.setOptions({
+        highlight: function(code, lang) {
+          if (lang && hljs.getLanguage(lang)) {
+            return hljs.highlight(code, { language: lang }).value;
+          }
+          return hljs.highlightAuto(code).value;
+        },
+        breaks: true
+      });
 
       const history = [
         {
           role: "system",
-          content: "You are a concise assistant. Keep answers short and clear.",
+          content: "You are a helpful assistant. Use Markdown for formatting.",
         },
       ];
+
+      // Auto-resize textarea
+      userInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+        if(this.value === '') this.style.height = 'auto';
+      });
 
       chatForm.addEventListener("submit", (e) => {
         e.preventDefault();
@@ -139,18 +226,29 @@
         const content = userInput.value.trim();
         if (!content) return;
 
+        // Reset textarea height
+        userInput.style.height = 'auto';
+        
         addMessage("user", content);
         userInput.value = "";
         userInput.focus();
 
-        const assistantNode = addMessage("assistant", "");
-        setStatus("Requesting...");
+        // Add placeholder for AI
+        const { bubbleContent, row } = addMessage("assistant", "");
+        
+        // UI Updates
+        updateStatus("Requesting...", "bg-yellow-500");
         sendBtn.disabled = true;
+        
+        // Add loading indicator
+        const loadingCursor = document.createElement('span');
+        loadingCursor.className = "inline-block w-2 h-4 align-middle bg-accent ml-1 animate-pulse";
+        bubbleContent.appendChild(loadingCursor);
 
         const startedAt = performance.now();
         let firstTokenAt = null;
         let tokenCount = 0;
-        let buffer = "";
+        let fullResponse = "";
 
         try {
           const payload = {
@@ -168,42 +266,45 @@
             body: JSON.stringify(payload),
           });
 
-          if (!response.ok || !response.body) {
-            throw new Error(`Request failed: ${response.status} ${response.statusText}`);
-          }
+          if (!response.ok) throw new Error(`Error: ${response.status}`);
 
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
 
-          streamLoop: while (true) {
+          while (true) {
             const { value, done } = await reader.read();
-            if (done) break streamLoop;
+            if (done) break;
             const chunk = decoder.decode(value, { stream: true });
             const lines = chunk.split("\n");
 
             for (const line of lines) {
-              if (!line.trim()) continue;
-              if (!line.startsWith("data:")) continue;
+              if (!line.trim() || !line.startsWith("data:")) continue;
               const json = line.replace(/^data:\s*/, "");
-              if (json === "[DONE]") break streamLoop;
+              if (json === "[DONE]") break;
 
               try {
                 const data = JSON.parse(json);
                 const delta = data.choices?.[0]?.delta?.content ?? "";
-                if (!delta) continue;
-
-                if (!firstTokenAt) {
-                  firstTokenAt = performance.now();
-                  updateFirstToken(startedAt, firstTokenAt);
+                
+                if (delta) {
+                  if (!firstTokenAt) {
+                    firstTokenAt = performance.now();
+                    updateFirstToken(startedAt, firstTokenAt);
+                    // Remove loading cursor once we start getting text
+                    if(bubbleContent.contains(loadingCursor)) loadingCursor.remove();
+                  }
+                  
+                  fullResponse += delta;
+                  tokenCount += delta.split(/\s+/).filter(Boolean).length; // Rough token estimate
+                  
+                  // Update UI with Markdown parsed content
+                  // Note: Parsing Markdown on every chunk is expensive for huge texts, 
+                  // but fine for this demo scale.
+                  bubbleContent.innerHTML = marked.parse(fullResponse);
+                  
+                  scrollToBottom();
                 }
-
-                buffer += delta;
-                tokenCount += delta.split(/\s+/).filter(Boolean).length;
-                assistantNode.textContent = buffer;
-                scrollToBottom();
-              } catch (err) {
-                console.error("Stream parse error", err);
-              }
+              } catch (err) { console.error(err); }
             }
           }
 
@@ -211,71 +312,83 @@
           updateTokenRate(firstTokenAt, endedAt, tokenCount);
 
           history.push({ role: "user", content });
-          history.push({ role: "assistant", content: buffer || "..." });
+          history.push({ role: "assistant", content: fullResponse });
 
-          setStatus("Done");
+          updateStatus("Idle", "bg-slate-500");
         } catch (error) {
           console.error(error);
-          assistantNode.textContent = "Request failed. Check console.";
-          setStatus("Error");
-          firstTokenEl.textContent = "--";
-          tokenRateEl.textContent = "--";
+          bubbleContent.textContent = "Error: Failed to connect to Gateway.";
+          bubbleContent.className += " text-red-400";
+          updateStatus("Error", "bg-red-500");
         } finally {
           sendBtn.disabled = false;
+          if(bubbleContent.contains(loadingCursor)) loadingCursor.remove();
         }
       }
 
       function addMessage(role, text) {
         const row = document.createElement("div");
-        row.className = "flex gap-3";
+        row.className = "flex gap-4 animate-[fadeIn_0.3s_ease-out]";
 
+        // Avatar
+        const avatarCol = document.createElement("div");
+        avatarCol.className = "flex-none flex flex-col items-center gap-1";
         const avatar = document.createElement("div");
-        avatar.className =
-          "mt-1 h-8 w-8 flex-shrink-0 rounded-full text-center text-sm font-semibold leading-8";
-
+        avatar.className = "h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold";
+        
         if (role === "user") {
           avatar.textContent = "You";
-          avatar.classList.add("bg-white/10", "text-slate-200");
+          avatar.classList.add("bg-white/10", "text-slate-300");
+          row.classList.add("flex-row-reverse"); // User on right (optional style choice, but keeping left for consistent chat log style usually better, keeping left here)
+          // Actually, let's keep strict left alignment for both like ChatGPT, it's cleaner for reading long text
+          row.classList.remove("flex-row-reverse"); 
         } else {
           avatar.textContent = "AI";
-          avatar.classList.add("bg-gradient-to-br", "from-glow/70", "to-accent/80", "text-slate-950");
+          avatar.classList.add("bg-gradient-to-br", "from-glow", "to-accent", "text-slate-950", "shadow-lg", "shadow-accent/20");
         }
+        avatarCol.appendChild(avatar);
 
+        // Bubble
+        const bubbleWrapper = document.createElement("div");
+        bubbleWrapper.className = "flex-1 max-w-[85%]";
+        
         const bubble = document.createElement("div");
-        bubble.className =
-          "relative max-w-3xl rounded-2xl p-3 text-sm leading-relaxed backdrop-blur-sm";
-        bubble.textContent = text;
-
+        bubble.className = "prose prose-invert prose-sm max-w-none text-sm leading-relaxed break-words"; // Tailwind typography classes
+        
         if (role === "user") {
-          bubble.classList.add("bg-white/5", "text-slate-100", "border", "border-white/10");
+           // User styling
+           bubble.className = "px-4 py-2.5 bg-slate-700/50 text-white rounded-2xl rounded-tl-none border border-white/5 text-sm";
+           bubble.textContent = text;
         } else {
-          bubble.classList.add("bg-gradient-to-br", "from-white/10", "to-white/5", "text-slate-100");
+           // AI styling (Glass)
+           bubble.className += " px-4 py-2.5 bg-white/5 text-slate-200 rounded-2xl rounded-tl-none border border-white/10 shadow-sm";
         }
 
-        row.append(avatar, bubble);
-        messagesEl.appendChild(row);
+        bubbleWrapper.appendChild(bubble);
+        row.append(avatarCol, bubbleWrapper);
+        
+        messagesContainer.appendChild(row);
         scrollToBottom();
-        return bubble;
+        
+        return { bubbleContent: bubble, row };
       }
 
       function updateFirstToken(startedAt, firstTokenAt) {
         const ms = firstTokenAt - startedAt;
-        firstTokenEl.textContent = `${ms.toFixed(0)} ms`;
-        setStatus("Streaming...");
+        firstTokenEl.textContent = `${ms.toFixed(0)}ms`;
+        updateStatus("Streaming...", "bg-accent animate-pulse");
       }
 
       function updateTokenRate(firstTokenAt, endedAt, tokens) {
-        if (!firstTokenAt) {
-          tokenRateEl.textContent = "--";
-          return;
-        }
+        if (!firstTokenAt) return;
         const durationSec = (endedAt - firstTokenAt) / 1000;
-        const rate = durationSec > 0 ? tokens / durationSec : tokens;
-        tokenRateEl.textContent = `${rate.toFixed(1)} tok/s`;
+        const rate = durationSec > 0 ? tokens / durationSec : 0;
+        tokenRateEl.textContent = `${rate.toFixed(1)} T/s`;
       }
 
-      function setStatus(text) {
+      function updateStatus(text, colorClass) {
         statusEl.textContent = text;
+        statusDot.className = `h-2 w-2 rounded-full ${colorClass}`;
       }
 
       function scrollToBottom() {
