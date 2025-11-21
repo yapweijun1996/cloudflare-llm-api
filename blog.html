@@ -101,7 +101,8 @@
         margin: 12px 0 0;
       }
       code {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          "Courier New", monospace;
       }
       footer {
         border-top: 1px solid #e2e8f0;
@@ -113,6 +114,18 @@
       .note {
         color: #334155;
       }
+      .tagline {
+        font-size: 14px;
+        color: #64748b;
+      }
+      .step-list {
+        padding-left: 18px;
+        margin: 4px 0 0;
+        font-size: 14px;
+      }
+      .step-list li {
+        margin: 2px 0;
+      }
     </style>
   </head>
   <body>
@@ -121,65 +134,105 @@
         <p class="eyebrow">Hands-on Guide</p>
         <h1>Host your own OpenAI-style API at home with llama.cpp + Cloudflare Tunnel</h1>
         <p class="lead">
-          This blog walks a junior teammate through running a local GGUF model with llama.cpp, exposing it safely through
-          Cloudflare Tunnel, protecting it with a Node.js API-key gateway, and using the simple chat UI in
-          <code>index.html</code>.
+          This article shows you, step by step, how to run a local GGUF model with
+          <code>llama.cpp</code>, expose it safely through Cloudflare Tunnel, protect it with a Node.js API-key
+          gateway, and call it from a simple HTML chat UI.
+        </p>
+        <p class="tagline">
+          用最简单的方式，在家里把「自己的 OpenAI API」架起来。你只要照着复制贴上，一步一步跟着做就可以。
         </p>
         <div class="chips">
           <span class="chip">llama.cpp</span>
           <span class="chip">Cloudflare Tunnel</span>
           <span class="chip">Node.js Gateway</span>
+          <span class="chip">CORS & API Keys</span>
           <span class="chip">Chat UI</span>
         </div>
       </header>
 
-      <section class="grid">
-        <div class="card">
-          <p class="eyebrow" style="letter-spacing: 0.08em">What you get</p>
-          <p>An OpenAI-compatible <code>/v1/chat/completions</code> API on your own hardware with API keys.</p>
-        </div>
-        <div class="card">
-          <p class="eyebrow" style="letter-spacing: 0.08em">Who this is for</p>
-          <p>Juniors who want a copy-paste friendly path to a self-hosted LLM with sensible defaults.</p>
-        </div>
-        <div class="card">
-          <p class="eyebrow" style="letter-spacing: 0.08em">Time to complete</p>
-          <p>About 30-45 minutes on macOS with decent bandwidth.</p>
-        </div>
-      </section>
-
+      <!-- QUICK OVERVIEW -->
       <section class="card">
-        <h2>0. Architecture</h2>
-        <p class="note">
-          Requests flow from the browser to your gateway, then to llama.cpp, with Cloudflare handling the public entry
-          point. API keys are enforced at the gateway.
-        </p>
-        <pre><code>[Browser / App] -- HTTPS + Authorization: Bearer sk-xxx
+        <h2>0. Quick overview（懒人总览）</h2>
+        <p class="note">如果你只想知道整体在做什么，先看这段。</p>
+        <ul class="step-list">
+          <li><strong>Step 1：</strong>用 <code>llama-server</code> 在本机跑 GGUF 模型（OpenAI 风格 API）。</li>
+          <li>
+            <strong>Step 2：</strong>用 Node.js 做一个 <em>API Gateway</em>：
+            检查 <code>Authorization: Bearer sk-xxx</code>，并处理 CORS。
+          </li>
+          <li>
+            <strong>Step 3：</strong>用 Cloudflare Tunnel 把
+            <code>https://api.your-domain.com</code> 安全地指到你家里的 Gateway。
+          </li>
+          <li>
+            <strong>Step 4：</strong>用一个简单的 HTML <code>index.html</code> 做 Chat UI，在浏览器直接调用你的 API。
+          </li>
+        </ul>
+        <pre><code>[Browser / Chat UI] -- HTTPS + Authorization: Bearer sk-xxx
         |
-Cloudflare Edge (DNS/TLS/WAF)
+Cloudflare Edge (DNS / TLS / WAF)
         |
 cloudflared tunnel
         |
-Node.js Gateway @ localhost:8787
+Node.js Gateway @ localhost:8787  (API keys + CORS)
         |
-llama-server (llama.cpp) @ localhost:5857</code></pre>
+llama-server (llama.cpp) @ localhost:5857  (GGUF model)</code></pre>
       </section>
 
+      <!-- WHO / WHAT / TIME -->
+      <section class="grid">
+        <div class="card">
+          <p class="eyebrow" style="letter-spacing: 0.08em">What you get</p>
+          <p>
+            An OpenAI-compatible <code>/v1/chat/completions</code> API running on your own hardware, protected by your
+            own API keys and reachable from the internet.
+          </p>
+        </div>
+        <div class="card">
+          <p class="eyebrow" style="letter-spacing: 0.08em">Who this is for</p>
+          <p>
+            Junior developers who want a copy-paste friendly way to self-host an LLM with sensible defaults, without
+            reverse-engineering docs all day.
+          </p>
+        </div>
+        <div class="card">
+          <p class="eyebrow" style="letter-spacing: 0.08em">Time to complete</p>
+          <p>About 30–45 minutes on macOS with decent bandwidth and a 16 GB+ machine.</p>
+        </div>
+      </section>
+
+      <!-- PREREQUISITES -->
       <section class="card">
-        <h3>1. Prerequisites</h3>
+        <h2>1. Prerequisites（前置准备）</h2>
         <ul>
-          <li>Hardware: 16 GB RAM for gpt-oss-20B; smaller 7B/8B models work on leaner boxes.</li>
-          <li>OS: macOS/Linux/Windows; examples use macOS.</li>
-          <li>Tools: Homebrew (mac), Node.js 18+, a Cloudflare account with a domain managed there.</li>
+          <li>
+            <strong>Hardware：</strong>16 GB RAM 推荐给 20B 模型（例如 gpt-oss-20B）。7B / 8B 模型可以在更小机器上跑。
+          </li>
+          <li><strong>OS：</strong>macOS / Linux / Windows 都可以。下面示例使用 macOS。</li>
+          <li>
+            <strong>Tools：</strong>
+            <ul>
+              <li>Homebrew（macOS 套件管理）</li>
+              <li>Node.js 18+（内建 <code>fetch</code>）</li>
+              <li>
+                Cloudflare 帐号 + 一个你的网域，DNS 已经托管到 Cloudflare（nameserver 指过去即可）。
+              </li>
+            </ul>
+          </li>
         </ul>
       </section>
 
+      <!-- LLAMA.CPP -->
       <section class="card">
-        <h3>2. Run llama.cpp locally</h3>
-        <p class="note">Install once, then start the OpenAI-compatible server.</p>
-        <pre><code>brew install llama.cpp
+        <h2>2. Run llama.cpp locally（在本机跑 LLM 服务器）</h2>
+        <p class="note">
+          我们用 <code>llama-server</code> 跑一个 OpenAI 兼容的 HTTP 服务器，让你可以用
+          <code>/v1/chat/completions</code> 调模型。
+        </p>
+        <pre><code># 2.1 安装 llama.cpp（macOS）
+brew install llama.cpp
 
-# Launch the server (downloads model on first run)
+# 2.2 启动 llama-server
 llama-server \
   -hf unsloth/gpt-oss-20b-GGUF:gpt-oss-20b-Q4_K_M.gguf \
   --port 5857 \
@@ -187,85 +240,383 @@ llama-server \
   --threads -1 \
   --jinja \
   --reasoning-format none</code></pre>
-        <p class="note">Sanity check the local API:</p>
+        <p class="note">
+          第一次跑会从 Hugging Face 下载 GGUF 模型（需要一点时间）。之后就直接用本地快取。<br />
+          参数简单理解一下：<code>--port</code> 是 HTTP 端口、<code>--ctx-size</code> 是最大上下文 token、
+          <code>--threads</code> 使用 CPU 线程数。
+        </p>
+        <p class="note">用 <code>curl</code> 做一个本机测试（确认模型正常工作）：</p>
         <pre><code>curl http://localhost:5857/v1/chat/completions \
-  -H "Content-Type": "application/json" \
-  -d '{ "model": "gpt-oss-20b", "messages": [{ "role": "user", "content": "Hello from localhost" }] }'</code></pre>
-      </section>
-
-      <section class="card">
-        <h3>3. Add a Node.js API-key gateway</h3>
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-oss-20b",
+    "messages": [
+      { "role": "user", "content": "Hello from localhost 5857" }
+    ]
+  }'</code></pre>
         <p class="note">
-          The gateway enforces Bearer tokens and fixes CORS for browsers. Files live in <code>gateway/</code>.
-        </p>
-        <pre><code>cd gateway
-cp .env.example .env
-# Edit .env to match your host and keys:
-# LLM_API_KEYS=sk-tno-llm-2025-1,sk-tno-llm-2025-2
-# LLM_UPSTREAM=http://127.0.0.1:5857
-# GATEWAY_PORT=8787
-# CORS_ALLOW_ORIGIN=http://localhost:7788
-
-npm install   # first time
-npm start     # runs gateway.js on port 8787</code></pre>
-        <p class="note">
-          In <code>gateway.js</code>, <code>authMiddleware</code> checks <code>Authorization: Bearer sk-xxx</code>, and
-          CORS headers are applied globally plus after proxying upstream to avoid blank upstream CORS. This stops browser
-          CORS errors.
+          如果你看到类似 OpenAI 风格的 JSON 回应，那这一层就 OK 了。<br />到目前为止，一切都还只在你家电脑里面，没有对外。
         </p>
       </section>
 
+      <!-- NODE GATEWAY -->
       <section class="card">
-        <h3>4. Expose safely with Cloudflare Tunnel</h3>
-        <p class="note">Map a public HTTPS hostname to your local gateway.</p>
+        <h2>3. Build a Node.js API-key gateway（做一个自己的 API Gateway）</h2>
+        <p class="note">
+          这一步是整个系统的「大脑入口」：<br />
+          <strong>所有外部请求都先经过 Gateway → 检查 API Key → 通过才转发给 llama-server。</strong><br />
+          同时在这里统一处理 CORS，让浏览器不会被 CORS 卡住。
+        </p>
+
+        <h3>3.1 建立项目目录 & 安装依赖</h3>
+        <pre><code>mkdir llm-gateway
+cd llm-gateway
+
+npm init -y
+npm install express dotenv</code></pre>
+
+        <p class="note">在 <code>package.json</code> 中加上 <code>"type": "module"</code> 以及启动指令：</p>
+        <pre><code>{
+  "name": "llm-gateway",
+  "version": "1.0.0",
+  "main": "gateway.js",
+  "type": "module",
+  "scripts": {
+    "start": "node gateway.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0",
+    "express": "^4.21.0"
+  }
+}</code></pre>
+
+        <h3>3.2 .env：集中配置 API Keys / 上游地址 / CORS</h3>
+        <pre><code># .env
+LLM_API_KEYS=sk-home-2025-1,sk-home-2025-2
+LLM_UPSTREAM=http://127.0.0.1:5857
+GATEWAY_PORT=8787
+CORS_ORIGIN=http://localhost:7788</code></pre>
+        <p class="note">
+          说明：
+          <ul>
+            <li><code>LLM_API_KEYS</code>：允许的 API Key（可多个，用逗号隔开）。</li>
+            <li><code>LLM_UPSTREAM</code>：你的 <code>llama-server</code> 地址。</li>
+            <li><code>GATEWAY_PORT</code>：Gateway 对外监听的本机端口。</li>
+            <li><code>CORS_ORIGIN</code>：前端网页所在的 Origin（开发时是 <code>http://localhost:7788</code>）。</li>
+          </ul>
+        </p>
+
+        <h3>3.3 gateway.js：API Key 验证 + CORS + 转发</h3>
+        <p class="note">这是核心逻辑，逻辑尽量写得简单直接，方便初学者阅读。</p>
+        <pre><code>// gateway.js
+import express from "express";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const app = express();
+
+const PORT = parseInt(process.env.GATEWAY_PORT || "8787", 10);
+const UPSTREAM_BASE = process.env.LLM_UPSTREAM || "http://127.0.0.1:5857";
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:7788";
+
+// 解析 API Keys 到 Set
+const rawKeys = (process.env.LLM_API_KEYS || "").split(",");
+const VALID_KEYS = new Set(
+  rawKeys.map(k =&gt; k.trim()).filter(k =&gt; k.length &gt; 0)
+);
+
+console.log("✅ LLM Gateway config:");
+console.log("  - Port:", PORT);
+console.log("  - Upstream:", UPSTREAM_BASE);
+console.log("  - Valid API keys:", VALID_KEYS.size);
+
+// --- 全局 CORS 中间件 ---
+app.use((req, res, next) =&gt; {
+  res.header("Access-Control-Allow-Origin", CORS_ORIGIN);
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204); // CORS 预检，直接放行
+  }
+  next();
+});
+
+// 解析 JSON body
+app.use(express.json({ limit: "10mb" }));
+
+// --- API Key 验证中间件（OpenAI 风格）---
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  if (!authHeader) {
+    return res.status(401).json({
+      error: {
+        message: "Missing Authorization header. Use: Authorization: Bearer sk-xxx",
+        type: "invalid_api_key",
+      },
+    });
+  }
+
+  const parts = authHeader.split(" ");
+  if (parts.length !== 2 || parts[0].toLowerCase() !== "bearer") {
+    return res.status(401).json({
+      error: {
+        message: "Invalid Authorization header format. Expected: Bearer sk-xxx",
+        type: "invalid_api_key",
+      },
+    });
+  }
+
+  const token = parts[1].trim();
+  if (!VALID_KEYS.has(token)) {
+    console.warn("❌ Invalid API key:", token);
+    return res.status(401).json({
+      error: {
+        message: "Incorrect API key provided.",
+        type: "invalid_api_key",
+      },
+    });
+  }
+
+  req.apiKey = token; // 可用于 logging
+  next();
+}
+
+// Health check（可选）
+app.get("/health", (req, res) =&gt; {
+  res.json({
+    ok: true,
+    upstream: UPSTREAM_BASE,
+    keysConfigured: VALID_KEYS.size,
+  });
+});
+
+// Chat Completions 代理
+app.post("/v1/chat/completions", authMiddleware, async (req, res) =&gt; {
+  try {
+    const upstreamUrl = `${UPSTREAM_BASE}/v1/chat/completions`;
+    console.log("➡️  /v1/chat/completions via key:", req.apiKey);
+
+    const upstreamRes = await fetch(upstreamUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(req.body),
+    });
+
+    res.status(upstreamRes.status);
+
+    // 复制上游 headers，但不要覆盖我们的 CORS
+    for (const [key, value] of upstreamRes.headers.entries()) {
+      const lowerKey = key.toLowerCase();
+      if (lowerKey === "transfer-encoding") continue;
+      if (lowerKey.startsWith("access-control-")) continue;
+      res.setHeader(key, value);
+    }
+
+    // 再补一次 CORS（保险）
+    res.setHeader("Access-Control-Allow-Origin", CORS_ORIGIN);
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+    );
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+
+    if (upstreamRes.body) {
+      upstreamRes.body.pipe(res); // 支持 streaming
+    } else {
+      res.end();
+    }
+  } catch (err) {
+    console.error("Gateway error:", err);
+    res.status(500).json({
+      error: {
+        message: "Gateway failed to reach llama-server.",
+        type: "gateway_error",
+      },
+    });
+  }
+});
+
+app.listen(PORT, () =&gt; {
+  console.log(`🚀 LLM API Gateway listening on http://localhost:${PORT}`);
+});</code></pre>
+
+        <p class="note">
+          测试（本机）：<br />
+          1）先确认 <code>llama-server</code> 在 5857 跑着；<br />
+          2）在 <code>llm-gateway</code> 目录执行 <code>npm start</code>；<br />
+          3）试着打：
+        </p>
+        <pre><code>curl http://localhost:8787/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-home-2025-1" \
+  -d '{
+    "model": "gpt-oss-20b",
+    "messages": [
+      { "role": "user", "content": "Hello via Node.js gateway" }
+    ]
+  }'</code></pre>
+      </section>
+
+      <!-- CLOUDFLARE TUNNEL -->
+      <section class="card">
+        <h2>4. Expose it with Cloudflare Tunnel（用 Cloudflare 安全对外开放）</h2>
+        <p class="note">
+          现在我们让外面的世界可以通过 <code>https://api.your-domain.com</code> 访问你的 Gateway，但不需要开路由器端口。
+        </p>
+
+        <h3>4.1 安装与登录</h3>
         <pre><code>brew install cloudflared
-cloudflared tunnel login      # one-time auth in browser
-cloudflared tunnel create llm-home
-cloudflared tunnel route dns llm-home api.your-domain.com
 
-# config.yaml example (in ~/.cloudflared/)
-url: http://localhost:8787
-tunnel: llm-home
-credentials-file: /Users/you/.cloudflared/llm-home.json
+cloudflared tunnel login
+# 浏览器会打开 Cloudflare 页面，登录并授权</code></pre>
 
-cloudflared tunnel run llm-home</code></pre>
+        <h3>4.2 创建 Tunnel 和 DNS 记录</h3>
+        <pre><code># 创建一个 Tunnel（名字可以自定义）
+cloudflared tunnel create my-llm
+
+# 把子域名映射到这个 Tunnel（例如 api.your-domain.com）
+cloudflared tunnel route dns my-llm api.your-domain.com</code></pre>
+
+        <h3>4.3 配置 ~/.cloudflared/config.yml</h3>
+        <pre><code>tunnel: &lt;YOUR-TUNNEL-UUID&gt;
+credentials-file: /Users/&lt;you&gt;/.cloudflared/&lt;YOUR-TUNNEL-UUID&gt;.json
+
+ingress:
+  - hostname: api.your-domain.com
+    service: http://localhost:8787   # 指向 Node.js Gateway
+  - service: http_status:404         # 兜底规则</code></pre>
+
+        <h3>4.4 启动 Tunnel</h3>
+        <pre><code>cloudflared tunnel run my-llm</code></pre>
+
         <p class="note">
-          Now <code>https://api.your-domain.com/v1/chat/completions</code> reaches your gateway, which checks the API key
-          and forwards to llama.cpp on localhost.
+          现在你可以从任何地方测试（只要 DNS 刷新完成）：
         </p>
+        <pre><code>curl https://api.your-domain.com/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-home-2025-1" \
+  -d '{
+    "model": "gpt-oss-20b",
+    "messages": [
+      { "role": "user", "content": "Hello from the internet" }
+    ]
+  }'</code></pre>
       </section>
 
+      <!-- CHAT UI -->
       <section class="card">
-        <h3>5. Use the chat UI</h3>
+        <h2>5. Simple chat UI（前端聊天页面）</h2>
         <p class="note">
-          <code>index.html</code> is a streaming chatbox showing first-token latency and tokens-per-second.
+          最后，我们做一个简单的 <code>index.html</code>，在浏览器直接跟你的「家庭版 OpenAI API」聊天。这里只给关键部分：
         </p>
-        <pre><code># Serve the frontend (from repo root)
+
+        <h3>5.1 用静态服务器跑前端</h3>
+        <pre><code># 在前端目录（包含 index.html 的地方）
 python3 -m http.server 7788
 
-# In index.html (already set)
-const API_URL = "http://localhost:8787/v1/chat/completions";
-const API_KEY = "sk-tno-llm-2025-1";  // replace with your key</code></pre>
-        <ul>
-          <li>Enter your prompt; the assistant streams via Server-Sent Events.</li>
-          <li>Metric cards show first-token time and approximate tokens per second.</li>
-          <li>CORS is handled by the gateway; the page uses plain HTML/CSS.</li>
-        </ul>
+# 浏览器打开
+http://localhost:7788</code></pre>
+
+        <h3>5.2 Chat UI 内部的关键 JS 片段</h3>
+        <pre><code>&lt;script&gt;
+const API_URL = "https://api.your-domain.com/v1/chat/completions";
+const API_KEY = "sk-home-2025-1"; // 不要给别人看，生产环境请改用后端注入
+
+async function sendMessage(userText) {
+  const body = {
+    model: "gpt-oss-20b",
+    messages: [
+      { role: "user", content: userText }
+    ],
+    stream: false
+  };
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + API_KEY
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    throw new Error("HTTP " + res.status);
+  }
+  const json = await res.json();
+  const reply = json.choices?.[0]?.message?.content ?? "(no content)";
+  return reply;
+}
+&lt;/script&gt;</code></pre>
+
+        <p class="note">
+          在真正给别人用的时候，不建议把 API Key 直接写死在前端。<br />
+          这篇文章主要是教学：让你先跑得起来，之后可以再升级「账号系统」和「真正的 Key 管理」。
+        </p>
       </section>
 
+      <!-- CORS & COMMON ERRORS -->
       <section class="card">
-        <h3>6. Deploy notes</h3>
+        <h2>6. CORS & common errors（常见问题排错）</h2>
+
+        <h3>6.1 favicon.ico 404</h3>
+        <pre><code>GET http://localhost:7788/favicon.ico 404 (File not found)</code></pre>
+        <p class="note">
+          这只是浏览器自动请求网站图示，找不到就 404，对功能没有任何影响。你可以：
+        </p>
         <ul>
-          <li>Change <code>CORS_ALLOW_ORIGIN</code> to your production frontend host.</li>
-          <li>Rotate <code>LLM_API_KEYS</code> regularly; keep them out of the browser.</li>
-          <li>Put the gateway behind Cloudflare WAF/threat rules; keep llama-server bound to localhost.</li>
-          <li>For HTTPS locally, front the gateway with a reverse proxy (optional if using tunnel).</li>
+          <li>直接忽略；</li>
+          <li>或在 <code>&lt;head&gt;</code> 里加：<code>&lt;link rel="icon" href="data:,"&gt;</code>。</li>
         </ul>
+
+        <h3>6.2 CORS 被挡（核心问题）</h3>
+        <pre><code>Access to fetch at 'https://api.your-domain.com/v1/chat/completions'
+from origin 'http://localhost:7788' has been blocked by CORS policy:
+The 'Access-Control-Allow-Origin' header contains the invalid value ''.</code></pre>
+
+        <p class="note">
+          出现这类错误，基本上都是：
+          <strong>Gateway 回给浏览器的 CORS 头没设好，或被上游覆盖掉。</strong><br />
+          记得两件事：
+        </p>
+        <ul>
+          <li>在 Gateway 里统一设置 <code>Access-Control-Allow-Origin</code>（用 <code>CORS_ORIGIN</code>）。</li>
+          <li>从 <code>llama-server</code> 转发 header 时，不要转上游的 <code>access-control-*</code>，避免覆盖。</li>
+        </ul>
+        <p class="note">
+          如果你照着本文的 <code>gateway.js</code> 实作，基本上就不会再被 CORS 卡住。
+        </p>
+      </section>
+
+      <!-- SECURITY / NEXT -->
+      <section class="card">
+        <h2>7. Security & next steps（安全与下一步）</h2>
+        <ul>
+          <li>把 <code>llama-server</code> 只绑定在 <code>localhost</code>，不要对外开放端口。</li>
+          <li>
+            所有来自公网的流量都必须经由：
+            <code>Cloudflare → Tunnel → Node.js Gateway（API Key 验证）</code>。
+          </li>
+          <li>避免在公开前端硬编码真实 API Key；本篇示例偏向教学 / 自用。</li>
+          <li>可以在 Gateway 加入简单的 rate limit，防止 Key 被滥用刷爆你的机器。</li>
+          <li>有需要的话，再往「多模型路由」和「RAG（检索增强）」方向扩展。</li>
+        </ul>
+        <p class="note">
+          到这里，你就已经拥有一个「家庭版 OpenAI API」：<br />
+          模型跑在你自己的机器上，API 风格和 OpenAI 非常接近，而且你完全控制 Key 和访问权限。
+        </p>
       </section>
 
       <footer>
-        Made for teammates who need a clear, copy-paste path to a home-hosted LLM. Adjust model and CORS settings to fit
-        your hardware and domain.
+        写给未来的自己和团队里比较 junior 的同事：<br />
+        当你忘记怎么把家里的机器变成一个小型 OpenAI 时，回来看这一篇，从 Step 1 跟到 Step 7，就可以重新跑起整个系统。
       </footer>
     </div>
   </body>
