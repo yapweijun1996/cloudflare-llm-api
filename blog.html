@@ -4,86 +4,157 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Home LLM + Cloudflare Tunnel Guide</title>
-    <link
-      href="https://api.fontshare.com/v2/css?f[]=general%20sans@400,500,600,700&display=swap"
-      rel="stylesheet"
-    />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: { display: ['"General Sans"', "ui-sans-serif", "system-ui"] },
-            colors: {
-              base: "#0b1220",
-              panel: "#0f172a",
-              accent: "#22d3ee",
-              glow: "#a855f7",
-            },
-          },
-        },
-      };
-    </script>
     <style>
-      body {
-        background: radial-gradient(circle at 20% 20%, rgba(168, 85, 247, 0.15), transparent 35%),
-          radial-gradient(circle at 80% 0%, rgba(34, 211, 238, 0.12), transparent 40%),
-          #0b1220;
+      :root {
+        color-scheme: light;
       }
-      code,
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        background: #f7f9fc;
+        color: #0f172a;
+        line-height: 1.6;
+      }
+      .page {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 32px 18px 60px;
+      }
+      header {
+        margin-bottom: 28px;
+      }
+      .eyebrow {
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #64748b;
+        font-size: 12px;
+        margin: 0 0 10px;
+      }
+      h1 {
+        font-size: clamp(28px, 4vw, 40px);
+        margin: 0 0 14px;
+      }
+      p.lead {
+        margin: 0 0 14px;
+        color: #334155;
+      }
+      .chips {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+      }
+      .chip {
+        padding: 6px 10px;
+        border: 1px solid #e2e8f0;
+        border-radius: 999px;
+        background: #fff;
+        font-size: 13px;
+        color: #334155;
+      }
+      section {
+        margin-bottom: 26px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 12px;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 14px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+      }
+      .card h3,
+      .card h2 {
+        margin-top: 0;
+        margin-bottom: 8px;
+      }
+      h2 {
+        margin: 0 0 8px;
+        font-size: 22px;
+      }
+      h3 {
+        margin: 0 0 6px;
+        font-size: 18px;
+      }
+      ul {
+        padding-left: 18px;
+        margin: 8px 0 0;
+      }
+      li {
+        margin: 4px 0;
+      }
       pre {
-        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-          "Courier New", monospace;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 14px;
+        border-radius: 10px;
+        overflow-x: auto;
+        font-size: 13px;
+        border: 1px solid #1e293b;
+        margin: 12px 0 0;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      }
+      footer {
+        border-top: 1px solid #e2e8f0;
+        padding-top: 14px;
+        margin-top: 32px;
+        color: #64748b;
+        font-size: 14px;
+      }
+      .note {
+        color: #334155;
       }
     </style>
   </head>
-  <body class="min-h-screen text-slate-100 antialiased">
-    <div class="mx-auto max-w-5xl px-4 py-10">
-      <header class="mb-10 space-y-4">
-        <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Hands-on Guide</p>
-        <h1 class="text-4xl font-semibold leading-tight text-white sm:text-5xl">
-          Host your own OpenAI-style API at home with llama.cpp + Cloudflare Tunnel
-        </h1>
-        <p class="max-w-3xl text-slate-300">
+  <body>
+    <div class="page">
+      <header>
+        <p class="eyebrow">Hands-on Guide</p>
+        <h1>Host your own OpenAI-style API at home with llama.cpp + Cloudflare Tunnel</h1>
+        <p class="lead">
           This blog walks a junior teammate through running a local GGUF model with llama.cpp, exposing it safely through
-          Cloudflare Tunnel, protecting it with a Node.js API-key gateway, and using the Tailwind chat UI in
+          Cloudflare Tunnel, protecting it with a Node.js API-key gateway, and using the simple chat UI in
           <code>index.html</code>.
         </p>
-        <div class="flex flex-wrap gap-2 text-xs text-slate-300">
-          <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">llama.cpp</span>
-          <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">Cloudflare Tunnel</span>
-          <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">Node.js Gateway</span>
-          <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">Tailwind Chat UI</span>
+        <div class="chips">
+          <span class="chip">llama.cpp</span>
+          <span class="chip">Cloudflare Tunnel</span>
+          <span class="chip">Node.js Gateway</span>
+          <span class="chip">Chat UI</span>
         </div>
       </header>
 
-      <section class="mb-8 grid gap-4 sm:grid-cols-3">
-        <div class="rounded-xl border border-white/5 bg-panel/80 p-4 shadow-lg shadow-black/30">
-          <p class="text-xs uppercase tracking-wide text-slate-400">What you get</p>
-          <p class="mt-2 text-sm text-slate-100">
-            An OpenAI-compatible <code>/v1/chat/completions</code> API that runs on your hardware and is reachable over
-            HTTPS with your own API keys.
-          </p>
+      <section class="grid">
+        <div class="card">
+          <p class="eyebrow" style="letter-spacing: 0.08em">What you get</p>
+          <p>An OpenAI-compatible <code>/v1/chat/completions</code> API on your own hardware with API keys.</p>
         </div>
-        <div class="rounded-xl border border-white/5 bg-panel/80 p-4 shadow-lg shadow-black/30">
-          <p class="text-xs uppercase tracking-wide text-slate-400">Who this is for</p>
-          <p class="mt-2 text-sm text-slate-100">
-            Juniors who want a copy-paste friendly path to a self-hosted LLM with sensible defaults.
-          </p>
+        <div class="card">
+          <p class="eyebrow" style="letter-spacing: 0.08em">Who this is for</p>
+          <p>Juniors who want a copy-paste friendly path to a self-hosted LLM with sensible defaults.</p>
         </div>
-        <div class="rounded-xl border border-white/5 bg-panel/80 p-4 shadow-lg shadow-black/30">
-          <p class="text-xs uppercase tracking-wide text-slate-400">Time to complete</p>
-          <p class="mt-2 text-sm text-slate-100">About 30-45 minutes on macOS with decent bandwidth.</p>
+        <div class="card">
+          <p class="eyebrow" style="letter-spacing: 0.08em">Time to complete</p>
+          <p>About 30-45 minutes on macOS with decent bandwidth.</p>
         </div>
       </section>
 
-      <section class="mb-10 rounded-2xl border border-white/5 bg-panel/80 p-6 shadow-xl shadow-black/40">
-        <h2 class="text-2xl font-semibold text-white">0. Architecture</h2>
-        <p class="mt-3 text-slate-300">
+      <section class="card">
+        <h2>0. Architecture</h2>
+        <p class="note">
           Requests flow from the browser to your gateway, then to llama.cpp, with Cloudflare handling the public entry
           point. API keys are enforced at the gateway.
         </p>
-        <pre class="mt-4 overflow-auto rounded-xl border border-white/5 bg-black/60 p-4 text-sm leading-relaxed text-slate-100"><code>[Browser / App] -- HTTPS + Authorization: Bearer sk-xxx
+        <pre><code>[Browser / App] -- HTTPS + Authorization: Bearer sk-xxx
         |
 Cloudflare Edge (DNS/TLS/WAF)
         |
@@ -94,19 +165,19 @@ Node.js Gateway @ localhost:8787
 llama-server (llama.cpp) @ localhost:5857</code></pre>
       </section>
 
-      <section class="mb-10 space-y-6">
-        <div class="rounded-2xl border border-white/5 bg-panel/80 p-6 shadow-xl shadow-black/40">
-          <h3 class="text-xl font-semibold text-white">1. Prerequisites</h3>
-          <ul class="mt-3 space-y-2 text-slate-200">
-            <li>- Hardware: 16 GB RAM recommended for gpt-oss-20B; smaller 7B/8B models work on leaner boxes.</li>
-            <li>- OS: macOS/Linux/Windows; examples use macOS.</li>
-            <li>- Tools: Homebrew (mac), Node.js 18+, a Cloudflare account with a domain managed there.</li>
-          </ul>
-        </div>
-        <div class="rounded-2xl border border-white/5 bg-panel/80 p-6 shadow-xl shadow-black/40">
-          <h3 class="text-xl font-semibold text-white">2. Run llama.cpp locally</h3>
-          <p class="mt-2 text-slate-300">Install once, then start the OpenAI-compatible server.</p>
-<pre class="mt-4 overflow-auto rounded-xl border border-white/5 bg-black/70 p-4 text-sm text-slate-100"><code>brew install llama.cpp
+      <section class="card">
+        <h3>1. Prerequisites</h3>
+        <ul>
+          <li>Hardware: 16 GB RAM for gpt-oss-20B; smaller 7B/8B models work on leaner boxes.</li>
+          <li>OS: macOS/Linux/Windows; examples use macOS.</li>
+          <li>Tools: Homebrew (mac), Node.js 18+, a Cloudflare account with a domain managed there.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h3>2. Run llama.cpp locally</h3>
+        <p class="note">Install once, then start the OpenAI-compatible server.</p>
+        <pre><code>brew install llama.cpp
 
 # Launch the server (downloads model on first run)
 llama-server \
@@ -115,19 +186,19 @@ llama-server \
   --ctx-size 16384 \
   --threads -1 \
   --jinja \
-  --reasoning-format none
-</code></pre>
-          <p class="mt-3 text-slate-300">Sanity check the local API:</p>
-<pre class="mt-2 overflow-auto rounded-xl border border-white/5 bg-black/70 p-4 text-sm text-slate-100"><code>curl http://localhost:5857/v1/chat/completions \
-  -H "Content-Type: application/json" \
+  --reasoning-format none</code></pre>
+        <p class="note">Sanity check the local API:</p>
+        <pre><code>curl http://localhost:5857/v1/chat/completions \
+  -H "Content-Type": "application/json" \
   -d '{ "model": "gpt-oss-20b", "messages": [{ "role": "user", "content": "Hello from localhost" }] }'</code></pre>
-        </div>
-        <div class="rounded-2xl border border-white/5 bg-panel/80 p-6 shadow-xl shadow-black/40">
-          <h3 class="text-xl font-semibold text-white">3. Add a Node.js API-key gateway</h3>
-          <p class="mt-2 text-slate-300">
-            The gateway enforces Bearer tokens and fixes CORS for browsers. Files live in <code>gateway/</code>.
-          </p>
-<pre class="mt-4 overflow-auto rounded-xl border border-white/5 bg-black/70 p-4 text-sm text-slate-100"><code>cd gateway
+      </section>
+
+      <section class="card">
+        <h3>3. Add a Node.js API-key gateway</h3>
+        <p class="note">
+          The gateway enforces Bearer tokens and fixes CORS for browsers. Files live in <code>gateway/</code>.
+        </p>
+        <pre><code>cd gateway
 cp .env.example .env
 # Edit .env to match your host and keys:
 # LLM_API_KEYS=sk-tno-llm-2025-1,sk-tno-llm-2025-2
@@ -137,60 +208,62 @@ cp .env.example .env
 
 npm install   # first time
 npm start     # runs gateway.js on port 8787</code></pre>
-          <p class="mt-3 text-slate-300">
-            In <code>gateway.js</code>, the <code>authMiddleware</code> checks <code>Authorization: Bearer sk-xxx</code>,
-            and CORS headers are applied globally plus after proxying upstream to avoid blank upstream CORS. This is why
-            your browser requests stop failing with CORS.
-          </p>
-        </div>
-        <div class="rounded-2xl border border-white/5 bg-panel/80 p-6 shadow-xl shadow-black/40">
-          <h3 class="text-xl font-semibold text-white">4. Expose safely with Cloudflare Tunnel</h3>
-          <p class="mt-2 text-slate-300">Map a public HTTPS hostname to your local gateway.</p>
-<pre class="mt-4 overflow-auto rounded-xl border border-white/5 bg-black/70 p-4 text-sm text-slate-100"><code>brew install cloudflared
+        <p class="note">
+          In <code>gateway.js</code>, <code>authMiddleware</code> checks <code>Authorization: Bearer sk-xxx</code>, and
+          CORS headers are applied globally plus after proxying upstream to avoid blank upstream CORS. This stops browser
+          CORS errors.
+        </p>
+      </section>
+
+      <section class="card">
+        <h3>4. Expose safely with Cloudflare Tunnel</h3>
+        <p class="note">Map a public HTTPS hostname to your local gateway.</p>
+        <pre><code>brew install cloudflared
 cloudflared tunnel login      # one-time auth in browser
 cloudflared tunnel create llm-home
 cloudflared tunnel route dns llm-home api.your-domain.com
 
-# config.yaml example (usually in ~/.cloudflared/)
+# config.yaml example (in ~/.cloudflared/)
 url: http://localhost:8787
 tunnel: llm-home
 credentials-file: /Users/you/.cloudflared/llm-home.json
 
 cloudflared tunnel run llm-home</code></pre>
-          <p class="mt-3 text-slate-300">
-            At this point <code>https://api.your-domain.com/v1/chat/completions</code> reaches your gateway, which checks
-            the API key and forwards to llama.cpp on localhost.
-          </p>
-        </div>
-        <div class="rounded-2xl border border-white/5 bg-panel/80 p-6 shadow-xl shadow-black/40">
-          <h3 class="text-xl font-semibold text-white">5. Use the Tailwind chat UI</h3>
-          <p class="mt-2 text-slate-300">
-            <code>index.html</code> is a streaming chatbox that shows first-token latency and tokens-per-second.
-          </p>
-<pre class="mt-4 overflow-auto rounded-xl border border-white/5 bg-black/70 p-4 text-sm text-slate-100"><code># Serve the frontend (from repo root)
+        <p class="note">
+          Now <code>https://api.your-domain.com/v1/chat/completions</code> reaches your gateway, which checks the API key
+          and forwards to llama.cpp on localhost.
+        </p>
+      </section>
+
+      <section class="card">
+        <h3>5. Use the chat UI</h3>
+        <p class="note">
+          <code>index.html</code> is a streaming chatbox showing first-token latency and tokens-per-second.
+        </p>
+        <pre><code># Serve the frontend (from repo root)
 python3 -m http.server 7788
 
 # In index.html (already set)
 const API_URL = "http://localhost:8787/v1/chat/completions";
 const API_KEY = "sk-tno-llm-2025-1";  // replace with your key</code></pre>
-          <ul class="mt-3 space-y-2 text-slate-200">
-            <li>- Enter your prompt, the assistant streams via Server-Sent Events.</li>
-            <li>- Metrics cards show first-token time and approximate tokens per second.</li>
-            <li>- CORS is handled by the gateway; the page uses Tailwind CDN for styling.</li>
-          </ul>
-        </div>
-        <div class="rounded-2xl border border-white/5 bg-panel/80 p-6 shadow-xl shadow-black/40">
-          <h3 class="text-xl font-semibold text-white">6. Deploy notes</h3>
-          <ul class="mt-3 space-y-2 text-slate-200">
-            <li>- Change <code>CORS_ALLOW_ORIGIN</code> to your production frontend host.</li>
-            <li>- Rotate <code>LLM_API_KEYS</code> regularly; keep them out of the browser.</li>
-            <li>- Put the gateway behind Cloudflare WAF/threat rules; keep llama-server bound to localhost.</li>
-            <li>- For HTTPS locally, front the gateway with a reverse proxy (optional if using tunnel).</li>
-          </ul>
-        </div>
+        <ul>
+          <li>Enter your prompt; the assistant streams via Server-Sent Events.</li>
+          <li>Metric cards show first-token time and approximate tokens per second.</li>
+          <li>CORS is handled by the gateway; the page uses plain HTML/CSS.</li>
+        </ul>
       </section>
 
-      <footer class="mt-12 border-t border-white/5 pt-6 text-sm text-slate-400">
+      <section class="card">
+        <h3>6. Deploy notes</h3>
+        <ul>
+          <li>Change <code>CORS_ALLOW_ORIGIN</code> to your production frontend host.</li>
+          <li>Rotate <code>LLM_API_KEYS</code> regularly; keep them out of the browser.</li>
+          <li>Put the gateway behind Cloudflare WAF/threat rules; keep llama-server bound to localhost.</li>
+          <li>For HTTPS locally, front the gateway with a reverse proxy (optional if using tunnel).</li>
+        </ul>
+      </section>
+
+      <footer>
         Made for teammates who need a clear, copy-paste path to a home-hosted LLM. Adjust model and CORS settings to fit
         your hardware and domain.
       </footer>
