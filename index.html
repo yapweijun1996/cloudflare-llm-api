@@ -158,6 +158,10 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-0.5"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
           </button>
         </form>
+        <label for="streamToggle" class="mt-2 flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500 font-semibold">
+          <input id="streamToggle" type="checkbox" class="h-4 w-4 rounded border-white/20 bg-panel text-accent focus:ring-offset-0 focus:ring-2 focus:ring-accent" checked>
+          Stream responses
+        </label>
         <p class="mt-2 text-center text-[10px] text-slate-600">Powered by Cloudflare Gateway • AI generated content may be inaccurate.</p>
       </div>
     </footer>
@@ -175,6 +179,7 @@
       const statusDot = document.getElementById("statusDot");
       const firstTokenEl = document.getElementById("firstTokenTime");
       const tokenRateEl = document.getElementById("tokenRate");
+      const streamToggle = document.getElementById("streamToggle");
 
       // Setup Marked (Markdown) options
       marked.setOptions({
@@ -242,9 +247,10 @@
         let fullResponse = "";
 
         try {
+          const useStream = streamToggle.checked;
           const payload = {
             model: "gpt-oss-20b",
-            stream: true,
+            stream: useStream,
             messages: [...history, { role: "user", content }],
           };
 
@@ -259,44 +265,58 @@
 
           if (!response.ok) throw new Error(`Error: ${response.status}`);
 
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
+          if (useStream && response.body) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
 
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split("\n");
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              const chunk = decoder.decode(value, { stream: true });
+              const lines = chunk.split("\n");
 
-            for (const line of lines) {
-              if (!line.trim() || !line.startsWith("data:")) continue;
-              const json = line.replace(/^data:\s*/, "");
-              if (json === "[DONE]") break;
+              for (const line of lines) {
+                if (!line.trim() || !line.startsWith("data:")) continue;
+                const json = line.replace(/^data:\s*/, "");
+                if (json === "[DONE]") break;
 
-              try {
-                const data = JSON.parse(json);
-                const delta = data.choices?.[0]?.delta?.content ?? "";
-                
-                if (delta) {
-                  if (!firstTokenAt) {
-                    firstTokenAt = performance.now();
-                    updateFirstToken(startedAt, firstTokenAt);
-                    // Remove loading cursor once we start getting text
-                    if(bubbleContent.contains(loadingCursor)) loadingCursor.remove();
+                try {
+                  const data = JSON.parse(json);
+                  const delta = data.choices?.[0]?.delta?.content ?? "";
+                  
+                  if (delta) {
+                    if (!firstTokenAt) {
+                      firstTokenAt = performance.now();
+                      updateFirstToken(startedAt, firstTokenAt);
+                      // Remove loading cursor once we start getting text
+                      if(bubbleContent.contains(loadingCursor)) loadingCursor.remove();
+                    }
+                    
+                    fullResponse += delta;
+                    tokenCount += delta.split(/\s+/).filter(Boolean).length; // Rough token estimate
+                    
+                    // Update UI with Markdown parsed content
+                    // Note: Parsing Markdown on every chunk is expensive for huge texts, 
+                    // but fine for this demo scale.
+                    bubbleContent.innerHTML = marked.parse(fullResponse);
+                    
+                    scrollToBottom();
                   }
-                  
-                  fullResponse += delta;
-                  tokenCount += delta.split(/\s+/).filter(Boolean).length; // Rough token estimate
-                  
-                  // Update UI with Markdown parsed content
-                  // Note: Parsing Markdown on every chunk is expensive for huge texts, 
-                  // but fine for this demo scale.
-                  bubbleContent.innerHTML = marked.parse(fullResponse);
-                  
-                  scrollToBottom();
-                }
-              } catch (err) { console.error(err); }
+                } catch (err) { console.error(err); }
+              }
             }
+          } else {
+            const data = await response.json();
+            const contentText = data.choices?.[0]?.message?.content ?? "";
+            if (!contentText) throw new Error("Empty response from Gateway");
+
+            firstTokenAt = performance.now();
+            updateFirstToken(startedAt, firstTokenAt);
+            fullResponse = contentText;
+            tokenCount = fullResponse.split(/\s+/).filter(Boolean).length;
+            bubbleContent.innerHTML = marked.parse(fullResponse);
+            if(bubbleContent.contains(loadingCursor)) loadingCursor.remove();
+            scrollToBottom();
           }
 
           const endedAt = performance.now();
