@@ -93,6 +93,7 @@
 node pm2-simple.js
 ```
 常用按鍵：`a`/`7` 啟動全部（llama + gateway + tunnel）、`k`/`8` 停止全部、`0` 刷新狀態、`9` 查看 gateway 日誌。若要改模型或端口，直接編輯 `pm2-simple.js` 頂部的 `llama` 預設；確保端口與 `.env` 中的 `LLM_UPSTREAM` 保持一致。
+現在可集中修改設定：在根目錄編輯 `pm2-config.json`（模型路徑/端口、tunnel 名稱與 config.yml 路徑、工作目錄等），簡單菜單會自動讀取該檔。預設 tunnel config 會指向 `./cloudflared-config.yml`；若檔案不存在且路徑在倉庫內，執行菜單時會自動生成模板，記得填上你的 tunnel 資訊後再啟動。
 
 ---
 

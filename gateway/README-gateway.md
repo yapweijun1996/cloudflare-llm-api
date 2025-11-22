@@ -37,7 +37,7 @@ npm start
 ```
 
 ### 用 PM2 一键启动（推荐）
-在项目根目录有简化的 PM2 菜单 `pm2-simple.js`，可同时管理 llama/gateway/tunnel：
+在项目根目录有简化的 PM2 菜单 `pm2-simple.js`，可同时管理 llama/gateway/tunnel。所有命令可在 `pm2-config.json` 中集中修改（模型路径、tunnel 名称、config.yml 路径、工作目录等）：
 ```bash
 node pm2-simple.js
 ```
@@ -47,6 +47,7 @@ node pm2-simple.js
 - `0`：刷新状态表
 - `9`：查看 gateway 日志（排查错误）
 如需修改 llama 模型或端口，编辑 `pm2-simple.js` 顶部的 `llama` 预设；确保端口与 `.env` 的 `LLM_UPSTREAM` 一致。
+默认 tunnel 配置会读取 `./cloudflared-config.yml`（位于仓库根目录）；若文件不存在且路径在仓库内，运行 `pm2-simple.js` 会自动生成模板，请先填好 tunnel 名称、凭证文件路径和 ingress 域名后再启动。
 
 ## 本地测试
 正确的 Key：

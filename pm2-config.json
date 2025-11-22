@@ -1,0 +1,36 @@
+{
+  "gateway": {
+    "name": "gateway",
+    "command": "npm",
+    "args": ["start"],
+    "cwd": "gateway"
+  },
+  "tunnel": {
+    "name": "tunnel",
+    "command": "cloudflared",
+    "args": [
+      "tunnel",
+      "--config",
+      "/Users/yapweijun/.cloudflared/config.yml",
+      "run",
+      "6da0b7da-ec47-41f5-904c-601a8d68748c"
+    ],
+    "cwd": "."
+  },
+  "llama": {
+    "name": "llama",
+    "command": "llama-server",
+    "args": [
+      "--model",
+      "/path/to/your-model.gguf",
+      "--port",
+      "5857",
+      "--ctx-size",
+      "122000",
+      "--threads",
+      "-1",
+      "--jinja"
+    ],
+    "cwd": "."
+  }
+}

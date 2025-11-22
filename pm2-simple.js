@@ -6,30 +6,35 @@
 const { execFile } = require("node:child_process");
 const readline = require("node:readline");
 const path = require("node:path");
+const fs = require("node:fs");
+
+const CONFIG_PATH = path.join(__dirname, "pm2-config.json");
+const config = loadConfig();
 
 const presets = {
   gateway: {
-    name: "gateway",
-    command: "npm",
-    args: ["start"],
-    cwd: path.join(__dirname, "gateway"),
+    name: config.gateway?.name || "gateway",
+    command: config.gateway?.command || "npm",
+    args: config.gateway?.args || ["start"],
+    cwd: path.resolve(__dirname, config.gateway?.cwd || "gateway"),
   },
   tunnel: {
-    name: "tunnel",
-    command: "cloudflared",
-    args: ["tunnel", "run"],
-    cwd: process.cwd(),
+    name: config.tunnel?.name || "tunnel",
+    command: config.tunnel?.command || "cloudflared",
+    args: config.tunnel?.args || ["tunnel", "run"],
+    cwd: path.resolve(__dirname, config.tunnel?.cwd || "."),
   },
   llama: {
-    name: "llama",
-    command: "llama-server",
-    args: [
-      "-hf",
-      "unsloth/gpt-oss-20b-GGUF:gpt-oss-20b-Q4_K_M.gguf",
-      "--port",
-      "5857",
-    ],
-    cwd: process.cwd(),
+    name: config.llama?.name || "llama",
+    command: config.llama?.command || "llama-server",
+    args:
+      config.llama?.args || [
+        "--model",
+        "/path/to/your-model.gguf",
+        "--port",
+        "5857",
+      ],
+    cwd: path.resolve(__dirname, config.llama?.cwd || "."),
   },
 };
 
@@ -61,6 +66,7 @@ main().catch((err) => {
 
 async function main() {
   await ensurePm2();
+  ensureTunnelConfig(presets.tunnel);
   await renderStatus();
   printMenu();
   prompt();
@@ -205,6 +211,44 @@ function runPm2(args, options = {}) {
 function quit() {
   rl.close();
   process.exit(0);
+}
+
+function loadConfig() {
+  try {
+    const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+    return JSON.parse(raw);
+  } catch (err) {
+    console.warn(`Config not found or invalid at ${CONFIG_PATH}, using defaults.`);
+    return {};
+  }
+}
+
+function ensureTunnelConfig(tunnelPreset) {
+  const configPath = findCloudflaredConfigPath(tunnelPreset?.args);
+  if (!configPath) return;
+
+  const absPath = path.resolve(tunnelPreset.cwd || __dirname, configPath);
+  const inRepo = absPath.startsWith(path.resolve(__dirname));
+
+  if (!fs.existsSync(absPath) && inRepo) {
+    const template = `# cloudflared tunnel config (generated if missing)
+# Update these fields before running:
+tunnel: my-b1122333
+credentials-file: /path/to/my-b1122333.json
+ingress:
+  - hostname: api.b1122333.com
+    service: http://localhost:8787
+  - service: http_status:404
+`;
+    fs.writeFileSync(absPath, template, "utf8");
+    console.warn(`Created missing cloudflared config template at ${absPath}. Edit it to match your tunnel before starting.`);
+  }
+}
+
+function findCloudflaredConfigPath(args = []) {
+  const idx = args.findIndex((a) => a === "--config");
+  if (idx === -1 || idx + 1 >= args.length) return null;
+  return args[idx + 1];
 }
 
 function pad(str, width) {
