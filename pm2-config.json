@@ -23,7 +23,7 @@
     "args": [
       "--model", "/Users/yapweijun/Library/Caches/llama.cpp/unsloth_gpt-oss-20b-GGUF_gpt-oss-20b-Q4_K_M.gguf",
       "--port", "5857",
-      "--ctx-size", "8192",
+      "--ctx-size", "16000",
       "--threads", "-1",
       "--jinja"
     ],

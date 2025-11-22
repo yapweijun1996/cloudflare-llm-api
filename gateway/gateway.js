@@ -106,7 +106,7 @@ app.post("/v1/chat/completions", authMiddleware, async (req, res) => {
 
     if (!upstreamRes.body) return res.end();
 
-    // Convert Web stream -> Node stream for piping to Express response.
+    // Pass through upstream body (handles both streaming and non-streaming).
     Readable.fromWeb(upstreamRes.body).pipe(res);
   } catch (err) {
     console.error("Gateway error:", err);

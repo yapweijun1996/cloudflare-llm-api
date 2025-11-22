@@ -114,6 +114,63 @@ In the menu:
 
 ---
 
+### 3.3 How `--jinja` builds the prompt (chat template)
+
+`llama-server --jinja` turns OpenAI-style messages into the real prompt via a Jinja chat template:
+
+1. Receives JSON like `{"messages":[{"role":"system","content":"You are..."},{"role":"user","content":"Hello"}]}`
+2. Pipes those messages into a Jinja template that formats the conversation
+3. The rendered text is what the model actually sees
+
+Template sources:
+- Most instruct GGUFs already ship a `tokenizer.chat_template`; if so, `--jinja` will auto-use it.
+- To override or supply your own, set `LLAMA_CHAT_TEMPLATE` (works well with PM2 env). Some builds have `--chat-template` CLI, but the env var is easier when multiline.
+
+Example template (instruction-style tags):
+
+```jinja
+{% set system_message = "" %}
+{% for m in messages %}
+  {% if m.role == "system" %}
+    {% set system_message = m.content %}
+  {% endif %}
+{% endfor %}
+
+<System>
+{{ system_message }}
+</System>
+
+{% for m in messages %}
+  {% if m.role == "user" %}
+<User>
+{{ m.content }}
+</User>
+  {% elif m.role == "assistant" %}
+<Assistant>
+{{ m.content }}
+</Assistant>
+  {% endif %}
+{% endfor %}
+
+<Assistant>
+```
+
+Add it to PM2 via `pm2-config.json`:
+
+```json
+"llama": {
+  "command": "llama-server",
+  "args": ["--model", "/abs/path/model.gguf", "--port", "5857", "--ctx-size", "16000", "--threads", "-1", "--jinja"],
+  "env": {
+    "LLAMA_CHAT_TEMPLATE": "{% set system_message = \"\" %}\\n{% for m in messages %}\\n  {% if m.role == \"system\" %}\\n    {% set system_message = m.content %}\\n  {% endif %}\\n{% endfor %}\\n\\n<System>\\n{{ system_message }}\\n</System>\\n\\n{% for m in messages %}\\n  {% if m.role == \"user\" %}\\n<User>\\n{{ m.content }}\\n</User>\\n  {% elif m.role == \"assistant\" %}\\n<Assistant>\\n{{ m.content }}\\n</Assistant>\\n  {% endif %}\\n{% endfor %}\\n\\n<Assistant>\\n"
+  }
+}
+```
+
+Tip: if the model already replies in a normal chat style with only `--jinja`, you likely don’t need a custom template.
+
+---
+
 ## 4. Step 2 – Configure and start the Gateway
 
 The gateway:
