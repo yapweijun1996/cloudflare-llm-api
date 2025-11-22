@@ -21,14 +21,10 @@
     "name": "llama",
     "command": "llama-server",
     "args": [
-      "--model",
-      "/path/to/your-model.gguf",
-      "--port",
-      "5857",
-      "--ctx-size",
-      "122000",
-      "--threads",
-      "-1",
+      "--model", "/Users/yapweijun/Library/Caches/llama.cpp/unsloth_gpt-oss-20b-GGUF_gpt-oss-20b-Q4_K_M.gguf",
+      "--port", "5857",
+      "--ctx-size", "8192",
+      "--threads", "-1",
       "--jinja"
     ],
     "cwd": "."
