@@ -16,6 +16,8 @@ cp .env.example .env
 LLM_API_KEYS=sk-tno-llm-2025-1,sk-tno-llm-2025-2
 LLM_UPSTREAM=http://127.0.0.1:5857
 GATEWAY_PORT=8787
+# 可选：限制前端来源
+# CORS_ALLOW_ORIGIN=http://localhost:7788
 ```
 
 ## 启动顺序
@@ -33,6 +35,18 @@ npm start
   - Valid API keys: 2
 🚀 LLM API Gateway listening on http://localhost:8787
 ```
+
+### 用 PM2 一键启动（推荐）
+在项目根目录有简化的 PM2 菜单 `pm2-simple.js`，可同时管理 llama/gateway/tunnel：
+```bash
+node pm2-simple.js
+```
+常用按键：
+- `a` / `7`：启动全部（llama + gateway + tunnel，按需编辑命令）
+- `k` / `8`：停止全部
+- `0`：刷新状态表
+- `9`：查看 gateway 日志（排查错误）
+如需修改 llama 模型或端口，编辑 `pm2-simple.js` 顶部的 `llama` 预设；确保端口与 `.env` 的 `LLM_UPSTREAM` 一致。
 
 ## 本地测试
 正确的 Key：

@@ -87,6 +87,13 @@
 * 一個自己的網域（如 `b1122333.com`）
 * 該網域的 DNS 已託管在 Cloudflare（nameserver 指過去）
 
+### 3.3 快速啟動：PM2 菜單（選用）
+專案根目錄附了超簡單的 PM2 控制台，可一次啟動/停止所有服務：
+```bash
+node pm2-simple.js
+```
+常用按鍵：`a`/`7` 啟動全部（llama + gateway + tunnel）、`k`/`8` 停止全部、`0` 刷新狀態、`9` 查看 gateway 日誌。若要改模型或端口，直接編輯 `pm2-simple.js` 頂部的 `llama` 預設；確保端口與 `.env` 中的 `LLM_UPSTREAM` 保持一致。
+
 ---
 
 ## 4. Step 1：在本地啟動 llama.cpp 的 HTTP Server
