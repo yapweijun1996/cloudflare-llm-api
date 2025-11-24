@@ -303,9 +303,28 @@ function startProxyRequest(context, upstream) {
   }
 
   const res = context.res;
-  const release = createReleaseTracker(res, upstream);
+  const controller = new AbortController();
+  const abortUpstream = () => {
+    if (!controller.signal.aborted) {
+      controller.abort();
+    }
+  };
+  const release = createReleaseTracker(res, upstream, {
+    onRelease: () => {
+      res.off("close", abortUpstream);
+      res.off("error", abortUpstream);
+    },
+  });
 
-  proxyToUpstream(context, upstream).catch((err) => {
+  res.on("close", abortUpstream);
+  res.on("error", abortUpstream);
+
+  proxyToUpstream(context, upstream, controller).catch((err) => {
+    if (err?.name === "AbortError") {
+      console.warn("🔌 Upstream aborted (client disconnected).");
+      release();
+      return;
+    }
     console.error("Gateway proxy error:", err);
     if (!res.headersSent) {
       res.status(500).json({
@@ -321,10 +340,11 @@ function startProxyRequest(context, upstream) {
   });
 }
 
-function createReleaseTracker(res, upstream) {
+function createReleaseTracker(res, upstream, options = {}) {
   activeChatRequests += 1;
   upstream.active += 1;
   let released = false;
+  const { onRelease } = options || {};
 
   const release = () => {
     if (released) return;
@@ -334,6 +354,13 @@ function createReleaseTracker(res, upstream) {
     res.off("close", release);
     res.off("finish", release);
     res.off("error", release);
+    if (typeof onRelease === "function") {
+      try {
+        onRelease();
+      } catch (err) {
+        console.warn("Release cleanup failed:", err);
+      }
+    }
     processQueue();
   };
 
@@ -344,7 +371,7 @@ function createReleaseTracker(res, upstream) {
   return release;
 }
 
-async function proxyToUpstream(context, upstream) {
+async function proxyToUpstream(context, upstream, controller) {
   const { req, res } = context;
   const upstreamUrl = `${upstream.base}/v1/chat/completions`;
   console.log(
@@ -358,6 +385,7 @@ async function proxyToUpstream(context, upstream) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req.body),
+    signal: controller?.signal,
   });
 
   res.status(upstreamRes.status);
@@ -396,7 +424,24 @@ async function proxyToUpstream(context, upstream) {
   }
 
   const upstreamStream = Readable.fromWeb(upstreamRes.body);
-  const cleanupHeartbeat = () => stopHeartbeat();
+  const abortStream = () => {
+    try {
+      upstreamStream.destroy(
+        new Error("Client disconnected; upstream stream aborted.")
+      );
+    } catch (err) {
+      console.warn("Failed to destroy upstream stream:", err?.message || err);
+    }
+  };
+  if (controller?.signal) {
+    controller.signal.addEventListener("abort", abortStream);
+  }
+  const cleanupHeartbeat = () => {
+    stopHeartbeat();
+    if (controller?.signal) {
+      controller.signal.removeEventListener("abort", abortStream);
+    }
+  };
   upstreamStream.once("data", cleanupHeartbeat);
   upstreamStream.once("end", cleanupHeartbeat);
   upstreamStream.once("error", cleanupHeartbeat);
