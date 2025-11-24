@@ -23,9 +23,9 @@
     "args": [
       "--model", "/Users/yapweijun/Library/Caches/llama.cpp/unsloth_gpt-oss-20b-GGUF_gpt-oss-20b-Q4_K_M.gguf",
       "--port", "5857",
-      "--ctx-size", "128000",
-      "--threads", "4",
-      "--n-gpu-layers", "10",
+      "--ctx-size", "64000",
+      "--threads", "8",
+      "--n-gpu-layers", "14",
       "--parallel", "2",
       "--jinja"
     ],
