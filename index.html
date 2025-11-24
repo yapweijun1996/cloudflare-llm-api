@@ -158,17 +158,66 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-0.5"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
           </button>
         </form>
-        <label for="streamToggle" class="mt-2 flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500 font-semibold">
-          <input id="streamToggle" type="checkbox" class="h-4 w-4 rounded border-white/20 bg-panel text-accent focus:ring-offset-0 focus:ring-2 focus:ring-accent" checked>
-          Stream responses
-        </label>
+        <div class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <label for="streamToggle" class="flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500 font-semibold">
+            <input id="streamToggle" type="checkbox" class="h-4 w-4 rounded border-white/20 bg-panel text-accent focus:ring-offset-0 focus:ring-2 focus:ring-accent" checked>
+            Stream responses
+          </label>
+          <button
+            id="openSettings"
+            type="button"
+            class="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-300 transition hover:border-accent/60 hover:text-white"
+          >
+            Settings
+          </button>
+        </div>
         <p class="mt-2 text-center text-[10px] text-slate-600">Powered by Cloudflare Gateway • AI generated content may be inaccurate.</p>
       </div>
     </footer>
 
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 z-20 hidden items-center justify-center">
+      <div id="settingsOverlay" class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"></div>
+      <div class="relative z-10 w-full max-w-lg rounded-3xl border border-white/10 bg-panel/95 p-6 text-sm shadow-2xl">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-display font-semibold text-white">Chat Settings</h2>
+            <p class="text-xs uppercase tracking-wide text-slate-500">Customize Gateway parameters</p>
+          </div>
+          <button id="closeSettings" class="rounded-full border border-white/10 p-1 text-slate-400 hover:text-white" type="button">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <form id="settingsForm" class="mt-4 space-y-4">
+          <label class="block text-[11px] uppercase tracking-wide text-slate-500 font-semibold space-y-1">
+            <span>API Base URL</span>
+            <input id="modalApiUrl" type="text" class="w-full rounded-2xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent/60 focus:outline-none focus:ring-1 focus:ring-accent/40" />
+          </label>
+          <label class="block text-[11px] uppercase tracking-wide text-slate-500 font-semibold space-y-1">
+            <span>API Key</span>
+            <input id="modalApiKey" type="text" class="w-full rounded-2xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent/60 focus:outline-none focus:ring-1 focus:ring-accent/40" />
+          </label>
+          <label class="block text-[11px] uppercase tracking-wide text-slate-500 font-semibold space-y-1">
+            <span>System Prompt</span>
+            <textarea id="modalSystemPrompt" rows="3" class="w-full rounded-2xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent/60 focus:outline-none focus:ring-1 focus:ring-accent/40"></textarea>
+          </label>
+          <label class="block text-[11px] uppercase tracking-wide text-slate-500 font-semibold space-y-1">
+            <span>Temperature</span>
+            <input id="modalTemperature" type="number" step="0.1" min="0" max="2" class="w-full rounded-2xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent/60 focus:outline-none focus:ring-1 focus:ring-accent/40" />
+          </label>
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" id="cancelSettings" class="rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-white">Cancel</button>
+            <button type="submit" class="rounded-xl bg-accent px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-950 shadow shadow-accent/40 hover:bg-accent/90">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <script>
-      const API_URL = "https://api.b1122333.com/v1/chat/completions";
-      const API_KEY = "sk-tno-llm-2025-1";
+      const DEFAULT_API_URL = "https://api.b1122333.com/v1/chat/completions";
+      const DEFAULT_API_KEY = "sk-tno-llm-2025-1";
+      const DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant. Use Markdown for formatting.";
+      const DEFAULT_TEMPERATURE = 0.7;
 
       const messagesEl = document.getElementById("messages");
       const messagesContainer = messagesEl.firstElementChild; // The inner max-w-3xl div
@@ -180,6 +229,23 @@
       const firstTokenEl = document.getElementById("firstTokenTime");
       const tokenRateEl = document.getElementById("tokenRate");
       const streamToggle = document.getElementById("streamToggle");
+      const openSettingsBtn = document.getElementById("openSettings");
+      const settingsModal = document.getElementById("settingsModal");
+      const settingsOverlay = document.getElementById("settingsOverlay");
+      const closeSettingsBtn = document.getElementById("closeSettings");
+      const cancelSettingsBtn = document.getElementById("cancelSettings");
+      const settingsForm = document.getElementById("settingsForm");
+      const modalApiUrl = document.getElementById("modalApiUrl");
+      const modalApiKey = document.getElementById("modalApiKey");
+      const modalSystemPrompt = document.getElementById("modalSystemPrompt");
+      const modalTemperature = document.getElementById("modalTemperature");
+
+      const config = {
+        apiUrl: DEFAULT_API_URL,
+        apiKey: DEFAULT_API_KEY,
+        systemPrompt: DEFAULT_SYSTEM_PROMPT,
+        temperature: DEFAULT_TEMPERATURE,
+      };
 
       // Setup Marked (Markdown) options
       marked.setOptions({
@@ -195,7 +261,7 @@
       const history = [
         {
           role: "system",
-          content: "You are a helpful assistant. Use Markdown for formatting.",
+          content: config.systemPrompt,
         },
       ];
 
@@ -216,6 +282,39 @@
           e.preventDefault();
           sendMessage();
         }
+      });
+
+      function openSettingsModal() {
+        modalApiUrl.value = config.apiUrl;
+        modalApiKey.value = config.apiKey;
+        modalSystemPrompt.value = config.systemPrompt;
+        modalTemperature.value = config.temperature;
+        settingsModal.classList.remove("hidden");
+        settingsModal.classList.add("flex");
+      }
+
+      function closeSettingsModal() {
+        settingsModal.classList.add("hidden");
+        settingsModal.classList.remove("flex");
+      }
+
+      openSettingsBtn.addEventListener("click", openSettingsModal);
+      closeSettingsBtn.addEventListener("click", closeSettingsModal);
+      settingsOverlay.addEventListener("click", closeSettingsModal);
+      cancelSettingsBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        closeSettingsModal();
+      });
+
+      settingsForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        config.apiUrl = modalApiUrl.value.trim() || DEFAULT_API_URL;
+        config.apiKey = modalApiKey.value.trim() || DEFAULT_API_KEY;
+        config.systemPrompt = modalSystemPrompt.value.trim() || DEFAULT_SYSTEM_PROMPT;
+        const tempVal = parseFloat(modalTemperature.value);
+        config.temperature = Number.isFinite(tempVal) ? Math.min(Math.max(tempVal, 0), 2) : DEFAULT_TEMPERATURE;
+        history[0].content = config.systemPrompt;
+        closeSettingsModal();
       });
 
       async function sendMessage() {
@@ -248,17 +347,20 @@
 
         try {
           const useStream = streamToggle.checked;
+          const apiUrl = config.apiUrl || DEFAULT_API_URL;
+          const apiKey = config.apiKey || DEFAULT_API_KEY;
           const payload = {
             model: "gpt-oss-20b",
             stream: useStream,
+            temperature: config.temperature,
             messages: [...history, { role: "user", content }],
           };
 
-          const response = await fetch(API_URL, {
+          const response = await fetch(apiUrl, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${API_KEY}`,
+              Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify(payload),
           });
