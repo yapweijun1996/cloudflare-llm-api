@@ -3,7 +3,14 @@
     "name": "gateway",
     "command": "npm",
     "args": ["start"],
-    "cwd": "gateway"
+    "cwd": "gateway",
+    "env": {
+      "GATEWAY_MAX_CONCURRENT": "2",
+      "GATEWAY_BUSY_MESSAGE": "Currently more than 2 users are active. Please try again later.",
+      "LLM_UPSTREAMS": "http://127.0.0.1:5857,http://127.0.0.1:5957",
+      "LLM_SERVER_MAX_CONCURRENT": "1",
+      "GATEWAY_MAX_QUEUE": "10"
+    }
   },
   "tunnel": {
     "name": "tunnel",
@@ -24,9 +31,24 @@
       "--model", "/Users/yapweijun/Library/Caches/llama.cpp/unsloth_gpt-oss-20b-GGUF_gpt-oss-20b-Q4_K_M.gguf",
       "--port", "5857",
       "--ctx-size", "64000",
-      "--threads", "8",
-      "--n-gpu-layers", "14",
-      "--parallel", "2",
+      "--threads", "4",
+      "--n-gpu-layers", "8",
+      "--parallel", "1",
+      "--jinja"
+    ],
+
+    "cwd": "."
+  },
+  "llama2": {
+    "name": "llama2",
+    "command": "llama-server",
+    "args": [
+      "--model", "/Users/yapweijun/Library/Caches/llama.cpp/unsloth_gpt-oss-20b-GGUF_gpt-oss-20b-Q4_K_M.gguf",
+      "--port", "5957",
+      "--ctx-size", "64000",
+      "--threads", "4",
+      "--n-gpu-layers", "8",
+      "--parallel", "1",
       "--jinja"
     ],
 

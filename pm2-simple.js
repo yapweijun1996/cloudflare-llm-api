@@ -17,12 +17,14 @@ const presets = {
     command: config.gateway?.command || "npm",
     args: config.gateway?.args || ["start"],
     cwd: path.resolve(__dirname, config.gateway?.cwd || "gateway"),
+    env: config.gateway?.env || {},
   },
   tunnel: {
     name: config.tunnel?.name || "tunnel",
     command: config.tunnel?.command || "cloudflared",
     args: config.tunnel?.args || ["tunnel", "run"],
     cwd: path.resolve(__dirname, config.tunnel?.cwd || "."),
+    env: config.tunnel?.env || {},
   },
   llama: {
     name: config.llama?.name || "llama",
@@ -35,8 +37,25 @@ const presets = {
         "5857",
       ],
     cwd: path.resolve(__dirname, config.llama?.cwd || "."),
+    env: config.llama?.env || {},
   },
 };
+
+if (config.llama2) {
+  presets.llama2 = {
+    name: config.llama2?.name || "llama2",
+    command: config.llama2?.command || "llama-server",
+    args:
+      config.llama2?.args || [
+        "--model",
+        "/path/to/your-model.gguf",
+        "--port",
+        "5957",
+      ],
+    cwd: path.resolve(__dirname, config.llama2?.cwd || "."),
+    env: config.llama2?.env || {},
+  };
+}
 
 const menu = [
   ["1", "Start gateway", () => start("gateway")],
@@ -45,14 +64,24 @@ const menu = [
   ["4", "Stop tunnel", () => stop("tunnel")],
   ["5", "Start llama", () => start("llama")],
   ["6", "Stop llama", () => stop("llama")],
-  ["7", "Start ALL", () => startAll()],
-  ["8", "Stop ALL", () => stopAll()],
+];
+
+if (presets.llama2) {
+  menu.push(
+    ["7", "Start llama #2", () => start("llama2")],
+    ["8", "Stop llama #2", () => stop("llama2")]
+  );
+}
+
+menu.push(
+  ["9", "Start ALL", () => startAll()],
+  ["10", "Stop ALL", () => stopAll()],
   ["a", "Start ALL (quick key)", () => startAll()],
   ["k", "Stop ALL (quick key)", () => stopAll()],
-  ["9", "Logs gateway (80 lines)", () => logs("gateway")],
+  ["l", "Logs gateway (80 lines)", () => logs("gateway")],
   ["0", "Refresh status", () => renderStatus()],
-  ["q", "Quit", () => quit()],
-];
+  ["q", "Quit", () => quit()]
+);
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -109,13 +138,15 @@ async function start(key) {
     "--time",
     "--",
     ...p.args,
-  ]);
+  ], { env: withPresetEnv(p.env) });
   await renderStatus();
 }
 
 async function stop(key) {
-  await runPm2(["stop", key]).catch(() => {});
-  await runPm2(["delete", key]).catch(() => {});
+  const p = presets[key];
+  const name = p?.name || key;
+  await runPm2(["stop", name]).catch(() => {});
+  await runPm2(["delete", name]).catch(() => {});
   await renderStatus();
 }
 
@@ -132,7 +163,13 @@ async function stopAll() {
 }
 
 async function logs(key) {
-  await runPm2(["logs", key, "--lines", "80", "--nostream"]);
+  const p = presets[key];
+  const name = p?.name || key;
+  await runPm2(["logs", name, "--lines", "80", "--nostream"]);
+}
+
+function withPresetEnv(extra = {}) {
+  return { ...process.env, ...extra };
 }
 
 async function renderStatus() {

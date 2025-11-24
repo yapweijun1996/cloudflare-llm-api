@@ -365,7 +365,23 @@
             body: JSON.stringify(payload),
           });
 
-          if (!response.ok) throw new Error(`Error: ${response.status}`);
+          if (!response.ok) {
+            let errorMessage = `Error: ${response.status}`;
+            try {
+              const errorJson = await response.json();
+              errorMessage =
+                errorJson?.error?.message ||
+                errorJson?.message ||
+                errorMessage;
+            } catch (parseErr) {
+              // ignore JSON parse errors; fall back to status text
+              if (response.statusText) {
+                errorMessage = `${errorMessage} ${response.statusText}`;
+              }
+            }
+            showErrorMessage(bubbleContent, errorMessage);
+            throw new Error(errorMessage);
+          }
 
           if (useStream && response.body) {
             const reader = response.body.getReader();
@@ -430,8 +446,9 @@
           updateStatus("Idle", "bg-slate-500");
         } catch (error) {
           console.error(error);
-          bubbleContent.textContent = "Error: Failed to connect to Gateway.";
-          bubbleContent.className += " text-red-400";
+          if (!bubbleContent.classList.contains("text-red-400")) {
+            showErrorMessage(bubbleContent, "Error: Failed to connect to Gateway.");
+          }
           updateStatus("Error", "bg-red-500");
         } finally {
           sendBtn.disabled = false;
@@ -506,6 +523,13 @@
 
       function scrollToBottom() {
         messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+
+      function showErrorMessage(el, message) {
+        el.textContent = message;
+        if (!el.classList.contains("text-red-400")) {
+          el.className += " text-red-400";
+        }
       }
     </script>
   </body>
