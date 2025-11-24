@@ -15,6 +15,9 @@ const CORS_ALLOW_ORIGIN = process.env.CORS_ALLOW_ORIGIN || "*";
 const CORS_ALLOW_HEADERS =
   "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-My-LLM-Key";
 const CORS_ALLOW_METHODS = "GET, POST, OPTIONS";
+const HEARTBEAT_INTERVAL_MS = process.env.GATEWAY_HEARTBEAT_MS
+  ? parseInt(process.env.GATEWAY_HEARTBEAT_MS, 10)
+  : 15000;
 
 const rawKeys = (process.env.LLM_API_KEYS || "").split(",");
 const VALID_KEYS = new Set(
@@ -102,12 +105,43 @@ app.post("/v1/chat/completions", authMiddleware, async (req, res) => {
       if (lowerKey.startsWith("access-control-")) continue;
       res.setHeader(key, value);
     }
+    if (!res.getHeader("Cache-Control")) {
+      res.setHeader("Cache-Control", "no-cache");
+    }
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    const contentType =
+      upstreamRes.headers.get("content-type") || "application/json";
+    if (!res.getHeader("Content-Type")) {
+      res.setHeader("Content-Type", contentType);
+    }
     applyCors(res);
 
-    if (!upstreamRes.body) return res.end();
+    if (typeof res.flushHeaders === "function") {
+      res.flushHeaders();
+    }
+
+    const isEventStream = contentType
+      .toLowerCase()
+      .includes("text/event-stream");
+    const stopHeartbeat = startHeartbeat(
+      res,
+      isEventStream ? ": keep-alive\n\n" : " "
+    );
+
+    if (!upstreamRes.body) {
+      stopHeartbeat();
+      return res.end();
+    }
 
     // Pass through upstream body (handles both streaming and non-streaming).
-    Readable.fromWeb(upstreamRes.body).pipe(res);
+    const upstreamStream = Readable.fromWeb(upstreamRes.body);
+    const cleanupHeartbeat = () => stopHeartbeat();
+    upstreamStream.once("data", cleanupHeartbeat);
+    upstreamStream.once("end", cleanupHeartbeat);
+    upstreamStream.once("error", cleanupHeartbeat);
+    res.once("close", cleanupHeartbeat);
+    upstreamStream.pipe(res);
   } catch (err) {
     console.error("Gateway error:", err);
     res.status(500).json({
@@ -128,4 +162,30 @@ function applyCors(res) {
   res.setHeader("Access-Control-Allow-Origin", CORS_ALLOW_ORIGIN);
   res.setHeader("Access-Control-Allow-Headers", CORS_ALLOW_HEADERS);
   res.setHeader("Access-Control-Allow-Methods", CORS_ALLOW_METHODS);
+}
+
+function startHeartbeat(res, payload) {
+  if (!HEARTBEAT_INTERVAL_MS || HEARTBEAT_INTERVAL_MS <= 0) {
+    return () => {};
+  }
+
+  let stopped = false;
+  const timer = setInterval(() => {
+    if (stopped || res.writableEnded) {
+      clearInterval(timer);
+      return;
+    }
+    try {
+      res.write(payload);
+    } catch (err) {
+      console.warn("Heartbeat write failed:", err.message || err);
+      clearInterval(timer);
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    clearInterval(timer);
+  };
 }
